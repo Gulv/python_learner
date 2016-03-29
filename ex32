@@ -1,0 +1,12 @@
+change = [1, 'pennies', 2, 'dimes', 3, 'quarters']
+
+elements = []
+
+for i in change:
+    if i == range(0,6):
+        print "adding %d to the list." % i
+        elements.append(i)
+
+for i in elements:
+    print "element was %d" % i
+
