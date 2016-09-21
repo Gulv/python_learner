@@ -1,16 +1,31 @@
 import MySQLdb
-
+from sys import exit
 conn = MySQLdb.connect(host = "localhost", user = "root", passwd = "dealer1073.", db = "aetos", port = 3306, charset = "utf8")
-
 cur = conn.cursor(cursorclass = MySQLdb.cursors.DictCursor)
 
-'''
-cur.execute("delete from closed_trade")
-conn.commit()
-'''
+def empty():
+    if raw_input("Do you want to empty any table before uploading?\t") == "yes":
+        tablename = str(raw_input('Please input the name of table you want to empty:\t'))
+        cur.execute("delete from %s" % tablename)
+        conn.commit()
+        upload()
+    else:
+        upload()
+    
+def upload():
+    filename = str(raw_input('Please input the name of file you want to upload:\t'))
+    tablename = str(raw_input('Please input the name of table you want to upload to:\t'))
+    cur.execute("LOAD DATA LOCAL INFILE 'c:/Users/chang.liu/raw_csv/%s' INTO TABLE %s FIELDS TERMINATED BY ','ENCLOSED BY '\"\' LINES TERMINATED BY '\r\n'" % (filename,tablename))
+    conn.commit()
 
-filename = str(raw_input('Please input the name of file you want to upload:  '))
-tablename = str(raw_input('Please input the name of table you want to upload to:  '))
-
-cur.execute("LOAD DATA LOCAL INFILE 'c:/Users/chang.liu/raw_csv/%s' INTO TABLE %s FIELDS TERMINATED BY ','ENCLOSED BY '\"\' LINES TERMINATED BY '\r\n'" % (filename,tablename))
-conn.commit()
+def ans():
+    
+    while True:
+        ans = str(raw_input("Have you finished uploading?\t"))
+        if ans != "yes":
+            upload()
+        else:
+            print "OK, Bye!"
+            exit(0)
+empty()
+ans()
