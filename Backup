@@ -1,0 +1,17 @@
+import MySQLdb
+
+conn = MySQLdb.connect(host = "localhost", user = "root",
+                       passwd = "dealer1073.", db = "aetos", port = 3306, charset = "utf8")
+
+cur = conn.cursor()
+cur_dict = conn.cursor(cursorclass = MySQLdb.cursors.DictCursor)
+
+LOAD DATA LOCAL INFILE 'c:/Users/chang.liu/usdchf.csv' INTO TABLE closed_trade FIELDS TERMINATED BY ',' ENCLOSED BY '"' LINES TERMINATED BY '\r' IGNORE 1 LINES;
+
+ALTER TABLE closed_trade DROP COLUMN IsDeleted;
+
+create table closed_trade(Deal int NOT NULL, Login int NOT NULL, Name varchar(255) NOT NULL,OpenTime datetime NOT NULL,Type varchar(255) NOT NULL,Symbol varchar(255) NOT NULL,Volume varchar(255) NOT NULL,OpenPrice varchar(255) NOT NULL,ClosedTime datetime NOT NULL,ClosedPrice varchar(255) NOT NULL,Commission varchar(255) NOT NULL,Taxes varchar(255) NOT NULL,Agent varchar(255) NOT NULL,Swap varchar(255) NOT NULL,Profit varchar(255) NOT NULL,Pip int NOT NULL,Comment text NOT NULL) default charset=utf8;
+
+create table chart_usdchf(Time datetime NOT NULL, OpenPrice varchar(255) NOT NULL,HighestPrice varchar(255) NOT NULL,LowestPrice varchar(255) NOT NULL,ClosedPrice varchar(255) NOT NULL)default charset=utf8;
+
+insert into closed_trade(Deal,Login,Name,OpenTime,Type,Symbol,Volume,Openprice,ClosedTime,ClosedPrice,Commission,Taxes,Agent,Swap,Profit,Pip) values("1111","2222","chang","2016-09-20 04:00:00","sell","usdchf","50","0.99","2016-09-16 05:00:00","1","0","0","0","0","1000","50")
