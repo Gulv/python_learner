@@ -15,12 +15,11 @@ conn.commit()
 
 cur.execute("select * from chart_usdchf")
 
-lines = cur.fetchmany(5)
+lines = cur.fetchmany(100)
 
-t,o,h,l,c = ([] for i in range(5))
+o,h,l,c = ([] for i in range(4))
 for line in lines:
-    print line['OpenPrice']
-    t.append(line['Time'])
+    #t.append(line['Time'])
     o.append(line["OpenPrice"])
     h.append(line["HighestPrice"])
     l.append(line["LowestPrice"])
@@ -33,31 +32,29 @@ h_1 = [i.encode('utf') for i in h]
 l_1 = [i.encode('utf') for i in l]
 c_1 = [i.encode('utf') for i in c]
 
-print o_1
+#print t_1
 
-print type(o_1[1])
-'''
-ohlc = zip(t_1,o_1,h_1,l_1,c_1)
+#print type(t_1[1])
+
+
+
+#t_2 = [float(i) for i in t]
+
+t = [i for i in range (1,101)]
+
+o_2 = [float(i) for i in o_1]
+h_2 = [float(i) for i in h_1]
+l_2 = [float(i) for i in l_1]
+c_2 = [float(i) for i in c_1]
+
+ohlc = zip(t,o_2,h_2,l_2,c_2)
+
+#print ohlc
 
 fig = plt.figure(figsize=(18,7))
 ax = plt.subplot(1,1,1)
 candlestick_ohlc(ax, ohlc, width=0.6, colorup='r', colordown='g')
 plt.show()
 
-
-
-
-ohlc = [(o,h,l,c) for c,l,h,o in lines.iteritems()]
-print ohlc
-
-
-for line in lines:
-    print line
-    
-    #ohlc = []
-    #ohlc.extend(line)
-    #print ohlc
-    '''
 cur.close()
 conn.close()
-
