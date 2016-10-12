@@ -1,6 +1,6 @@
 import MySQLdb
 from sys import exit
-conn = MySQLdb.connect(host = "localhost", user = "root", passwd = "dealer1073.", db = "aetos", port = 3306, charset = "utf8")
+conn = MySQLdb.connect(host = "localhost", user = "root", passwd = "******", db = "******", port = 3306, charset = "utf8")
 cur = conn.cursor(cursorclass = MySQLdb.cursors.DictCursor)
 
 def empty():
