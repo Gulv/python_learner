@@ -2,13 +2,16 @@ import MySQLdb
 import matplotlib.pyplot as plt
 from matplotlib.finance import candlestick_ohlc
 
-conn = MySQLdb.connect(host = "localhost", user = "root", passwd = "******", db = "******", port = 3306, charset = "utf8")
+conn = MySQLdb.connect(host = "localhost", user = "root", passwd = "dealer1073.", db = "aetos", port = 3306, charset = "utf8")
 cur = conn.cursor(cursorclass = MySQLdb.cursors.DictCursor)
 
 #tablename = str(raw_input('Please input the table you want to operate:  '))
 #cur.execute("select * from %s" % tablename)
 
-cur.execute("select Symbol from orders")
+
+symbol_name = raw_input('Please Enter the Symbol Name:\t')
+
+cur.execute("select * from orders where Symbol = '%s'" % symbol_name)
 
 lines = cur.fetchall()
 
@@ -33,10 +36,3 @@ for line in lines:
 
 cur.close()
 conn.close()
-
-
-
-create table orders(Deal int NOT NULL, Login int NOT NULL, Time varchar(255) NOT NULL,Type varchar(255) NOT NULL,Symbol varchar(255) NOT NULL,Volume varchar(255) NOT NULL,OpenPrice varchar(255) NOT NULL,SL varchar(255) NOT NULL,TP varchar(255) NOT NULL,CurrentPrice varchar(255) NOT NULL, Swap varchar(255) NOT NULL,Profit varchar(255) NOT NULL,Comment text NOT NULL) default charset=utf8;
-
-
-
