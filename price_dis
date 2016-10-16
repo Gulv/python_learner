@@ -1,6 +1,6 @@
 import MySQLdb
 import matplotlib.pyplot as plt
-from matplotlib.finance import candlestick_ohlc
+from collections import Counter
 
 conn = MySQLdb.connect(host = "localhost", user = "root", passwd = "dealer1073.", db = "aetos", port = 3306, charset = "utf8")
 cur = conn.cursor(cursorclass = MySQLdb.cursors.DictCursor)
@@ -14,21 +14,47 @@ cur.execute("select * from orders where Symbol = 'gbpusd' and Type = 'Buy'")
 
 lines = cur.fetchmany(100)
 
-op,vol = ([] for i in range(2))
+op_t,vol_t = ([] for i in range(2))
 for line in lines:
-    op.append(line['OpenPrice'])
-    vol.append(line['Volume'])
+    op_t.append(line['OpenPrice'])
+    vol_t.append(line['Volume'])
 
 #op_1,vol_1,bs_1 = [i.encode('utf') for i in op,vol,bs]
 
-op_1 = [float(i.encode('utf')) for i in op]
-vol_1 = [float(i.encode('utf')) for i in vol]
+op = [float(i.encode('utf')) for i in op_t]
+vol = [float(i.encode('utf')) for i in vol_t]
+infor = zip(op,vol)
 
-infor = zip(op_1,vol_1)
+print infor[0][1]
 
-for k,v in infor:
-    if infor[int(k)][0] == infor[int(v)][0]:
-        a = [infor[int(k)][1]+infor[int(v)][1]]
+unique_price = []
 
-print a
+for item,count in Counter(op).most_common():
+    if count ==1:
+        unique_price.append(item)
+
+dup = list(set(op) - set(unique_price))
+
+
+price_dis = []
+duplicate = []
+
+
+for i in range(len(op)):
+    if op[i] not in price_dis:
+        price_dis.append(op[i])
+    else:
+        duplicate.append(op[i])
+
+dup = list(set(duplicate))
+'''
+    
+
+
+
+    
+
+cur.close()
+conn.close()
+    
 
