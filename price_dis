@@ -25,36 +25,36 @@ op = [float(i.encode('utf')) for i in op_t]
 vol = [float(i.encode('utf')) for i in vol_t]
 infor = zip(op,vol)
 
-print infor[0][1]
+print type(infor)
 
+'''
 unique_price = []
 
 for item,count in Counter(op).most_common():
     if count ==1:
         unique_price.append(item)
 
-dup = list(set(op) - set(unique_price))
+duplicate_price = list(set(op) - set(unique_price))
+
+print unique_price
+print duplicate_price
+print len(unique_price),len(duplicate_price),len(op)
 
 
-price_dis = []
-duplicate = []
+
+
+price_dis = {}
+
+
 
 
 for i in range(len(op)):
-    if op[i] not in price_dis:
-        price_dis.append(op[i])
+    if op[i] not in duplicate_price:
+        price_dis.update({op[i]:vol[i]})
     else:
-        duplicate.append(op[i])
+        peice_dis.update({op[i]})
 
-dup = list(set(duplicate))
 '''
-    
-
-
-
-    
 
 cur.close()
 conn.close()
-    
-
