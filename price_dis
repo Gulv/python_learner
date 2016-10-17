@@ -25,9 +25,6 @@ op = [float(i.encode('utf')) for i in op_t]
 vol = [float(i.encode('utf')) for i in vol_t]
 infor = zip(op,vol)
 
-print type(infor)
-
-'''
 unique_price = []
 
 for item,count in Counter(op).most_common():
@@ -36,24 +33,22 @@ for item,count in Counter(op).most_common():
 
 duplicate_price = list(set(op) - set(unique_price))
 
-print unique_price
-print duplicate_price
-print len(unique_price),len(duplicate_price),len(op)
+print op.insex(unique_price)
+
+
+
+#unique_volume = [op.index(unique_price)]
 
 
 
 
+'''
 price_dis = {}
-
-
-
-
 for i in range(len(op)):
-    if op[i] not in duplicate_price:
+    if op[i] not in price_dis.key():
         price_dis.update({op[i]:vol[i]})
     else:
-        peice_dis.update({op[i]})
-
+        peice_dis.update({op[i]}:vol[i]+???)
 '''
 
 cur.close()
