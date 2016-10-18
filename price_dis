@@ -19,37 +19,52 @@ for line in lines:
     op_t.append(line['OpenPrice'])
     vol_t.append(line['Volume'])
 
-#op_1,vol_1,bs_1 = [i.encode('utf') for i in op,vol,bs]
-
 op = [float(i.encode('utf')) for i in op_t]
 vol = [float(i.encode('utf')) for i in vol_t]
-infor = zip(op,vol)
 
 unique_price = []
-
 for item,count in Counter(op).most_common():
     if count ==1:
         unique_price.append(item)
+        
+unique_price_ordered = []
+for i in range(len(op)):
+    if op[i] in unique_price:
+        unique_price_ordered.append(op[i])
 
 duplicate_price = list(set(op) - set(unique_price))
+unique_index = [i for i,e in enumerate(op) if e in unique_price]
 
-print op.insex(unique_price)
+unique_volume = [vol[i] for i in unique_index]
+
+up_dis = {}
+for i in range(len(unique_price_ordered)):
+    up_dis.update({unique_price_ordered[i]:unique_volume[i]})
+
+
+dup = [v for v,1.23224 in enumerate(op)]
+print dup
+
+    
+print duplicate_price
+for i in range(len(duplicate_price)):
+    duplicate_index_i = [v for v,duplicate_price[i] in enumerate(op)]
+    print duplicate_index_i
+
+
+#duplicate_index = [i for i,items in enumerate(op) if items in duplicate_price] 
 
 
 
 #unique_volume = [op.index(unique_price)]
-
-
-
-
 '''
 price_dis = {}
 for i in range(len(op)):
+    for j = i+1 in range(len(op))
     if op[i] not in price_dis.key():
         price_dis.update({op[i]:vol[i]})
     else:
         peice_dis.update({op[i]}:vol[i]+???)
 '''
-
 cur.close()
 conn.close()
