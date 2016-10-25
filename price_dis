@@ -6,14 +6,14 @@ from collections import defaultdict
 conn = MySQLdb.connect(host = "localhost", user = "root", passwd = "dealer1073.", db = "aetos", port = 3306, charset = "utf8")
 cur = conn.cursor(cursorclass = MySQLdb.cursors.DictCursor)
 
-cur.execute("select * from orders where Symbol = 'gbpusd' and Type = 'Buy'")
+cur.execute("select * from orders where Symbol = 'eurusd' and Type = 'Sell'")
 
 
 #symbol_name = raw_input('Please Enter the Symbol Name:\t')
 #order_type = raw_input('Please Enter the Order Type:\t')
 #cur.execute("select * from orders where Symbol = '%s' and Type = '%s'" % (symbol_name,order_type))
 
-lines = cur.fetchmany(100)
+lines = cur.fetchall()
 
 op_t,vol_t = ([] for i in range(2))
 for line in lines:
@@ -42,31 +42,35 @@ up_dis = {}
 for i in range(len(unique_price_ordered)):
     up_dis.update({unique_price_ordered[i]:unique_volume[i]})
 
-    
-print duplicate_price
+#get unique price and volume dict!!
 
-duplicate_volume = []
 for i in range(len(duplicate_price)):
-    for j in [v for v,k in enumerate(op) if k == duplicate_price[i]]:
-        duplicate_volume = []
-    for k in duplicate_index:
-        duplicate_volume.append(vol[k])
-        print duplicate_volume
-'''
+    duplicate_index =[v for v,k in enumerate(op) if k == duplicate_price[i]]
 
-    #duplicate_volume = 
+#get duplicate price and its index so far
 
-
-
-
-'''
 price_dis = {}
+
 for i in range(len(op)):
-    for j = i+1 in range(len(op))
-    if op[i] not in price_dis.key():
-        price_dis.update({op[i]:vol[i]})
-    else:
-        peice_dis.update({op[i]}:vol[i]+???)
+    if op[i] not in price_dis.keys():
+            price_dis.update({op[i]:vol[i]})
+            for j in range(len(op)):
+                if op[i] == op[j] and i != j:
+                    vol[i] = vol[i] + vol[j]
+                price_dis.update({op[i]:vol[i]})
 '''
+for i in range(len(op)):
+    if op[i] not in price_dis.keys():
+            price_dis.update({op[i]:vol[i]})
+    for j in range(len(op)):
+        if op[i] == op[j] and i != j:
+            vol[i] = vol[i] + vol[j]
+            print op[i],vol[i]
+price_dis.update({op[i]:vol[i]})
+
+(wrong sample)
+'''
+print price_dis
+
 cur.close()
 conn.close()
