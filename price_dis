@@ -1,76 +1,166 @@
 import MySQLdb
 import matplotlib.pyplot as plt
 from collections import Counter
-from collections import defaultdict
+import numpy as np
+import time
 
-conn = MySQLdb.connect(host = "localhost", user = "root", passwd = "dealer1073.", db = "aetos", port = 3306, charset = "utf8")
+conn = MySQLdb.connect(host = "localhost", user = "root", passwd = "dealer1073.",
+                       db = "*****", port = 3306, charset = "utf8")
 cur = conn.cursor(cursorclass = MySQLdb.cursors.DictCursor)
 
-cur.execute("select * from orders where Symbol = 'eurusd' and Type = 'Sell'")
+symbol_name = raw_input('Please Enter the Symbol Name:\t')
 
-
-#symbol_name = raw_input('Please Enter the Symbol Name:\t')
-#order_type = raw_input('Please Enter the Order Type:\t')
-#cur.execute("select * from orders where Symbol = '%s' and Type = '%s'" % (symbol_name,order_type))
+cur.execute("select * from orders where Symbol = '%s' and Type = 'buy' or Symbol = '%s' and Type = 'sell'"
+            % (symbol_name,symbol_name))
 
 lines = cur.fetchall()
 
-op_t,vol_t = ([] for i in range(2))
-for line in lines:
-    op_t.append(line['OpenPrice'])
-    vol_t.append(line['Volume'])
+conn = MySQLdb.connect(host = "localhost", user = "root", passwd = "dealer1073.",
+                       db = "mt4", port = 3306, charset = "utf8")
+cur = conn.cursor(cursorclass = MySQLdb.cursors.DictCursor)
+cur.execute("select BID from mt4_prices where SYMBOL ='%s'" % symbol_name)
 
-op = [float(i.encode('utf')) for i in op_t]
-vol = [float(i.encode('utf')) for i in vol_t]
+quote = cur.fetchall()
 
-unique_price = []
-for item,count in Counter(op).most_common():
-    if count ==1:
-        unique_price.append(item)
-        
-unique_price_ordered = []
-for i in range(len(op)):
-    if op[i] in unique_price:
-        unique_price_ordered.append(op[i])
-
-duplicate_price = list(set(op) - set(unique_price))
-unique_index = [i for i,e in enumerate(op) if e in unique_price]
-
-unique_volume = [vol[i] for i in unique_index]
-
-up_dis = {}
-for i in range(len(unique_price_ordered)):
-    up_dis.update({unique_price_ordered[i]:unique_volume[i]})
-
-#get unique price and volume dict!!
-
-for i in range(len(duplicate_price)):
-    duplicate_index =[v for v,k in enumerate(op) if k == duplicate_price[i]]
-
-#get duplicate price and its index so far
-
-price_dis = {}
-
-for i in range(len(op)):
-    if op[i] not in price_dis.keys():
-            price_dis.update({op[i]:vol[i]})
-            for j in range(len(op)):
-                if op[i] == op[j] and i != j:
-                    vol[i] = vol[i] + vol[j]
-                price_dis.update({op[i]:vol[i]})
-'''
-for i in range(len(op)):
-    if op[i] not in price_dis.keys():
-            price_dis.update({op[i]:vol[i]})
-    for j in range(len(op)):
-        if op[i] == op[j] and i != j:
-            vol[i] = vol[i] + vol[j]
-            print op[i],vol[i]
-price_dis.update({op[i]:vol[i]})
-
-(wrong sample)
-'''
-print price_dis
+for quotes in quote:
+    current_quote = quotes['BID']
 
 cur.close()
 conn.close()
+
+op_b_t,vol_b_t,op_s_t,vol_s_t = ([] for i in range(4))
+for line in lines:
+    if line['Type'] == 'buy':
+        op_b_t.append(line['OpenPrice'])
+        vol_b_t.append(line['Volume'])
+    else:
+        op_s_t.append(line['OpenPrice'])
+        vol_s_t.append(line['Volume'])
+
+op_bi = [float(i.encode('utf')) for i in op_b_t]
+vol_b = [float(i.encode('utf')) for i in vol_b_t]
+op_si = [float(i.encode('utf')) for i in op_s_t]
+vol_s = [float(i.encode('utf')) for i in vol_s_t]
+
+vol_b_f,vol_s_f = [float(i.encode('utf')) for i in vol_b_t],[float(i.encode('utf')) for i in vol_s_t]
+
+if 'jpy' in symbol_name or 'JPY' in symbol_name:
+    op_b = [round(i,1) for i in op_bi]
+    op_s = [round(i,1) for i in op_si]
+elif 'XA' in symbol_name or 'xa' in symbol_name:
+    op_b = [round(i,0) for i in op_bi]
+    op_s = [round(i,0) for i in op_si]
+else:    
+    op_b = [round(i,3) for i in op_bi]
+    op_s = [round(i,3) for i in op_si]
+
+pricedis_buy = {}
+for i in range(len(op_b)):
+    if op_b[i] not in pricedis_buy.keys():
+            pricedis_buy.update({op_b[i]:vol_b[i]})
+            for j in range(len(op_b)):
+                if op_b[i] == op_b[j] and i != j:
+                    vol_b[i] = vol_b[i] + vol_b[j]
+                pricedis_buy.update({op_b[i]:vol_b[i]})
+
+pricedis_sell = {}
+for i in range(len(op_s)):
+    if op_s[i] not in pricedis_sell.keys():
+            pricedis_sell.update({op_s[i]:vol_s[i]})
+            for j in range(len(op_s)):
+                if op_s[i] == op_s[j] and i != j:
+                    vol_s[i] = vol_s[i] + vol_s[j]
+                pricedis_sell.update({op_s[i]:vol_s[i]})
+                       
+def drop_outliers(data,population,m = 2):
+    data = [i for i in data if abs(np.mean(population)- i ) < m *np.std(population)]
+    return data
+
+def index_loc(n,source):
+    i = min(source,key = lambda x:abs(x-n))
+    for s,v in list(enumerate(source)):
+        if v == i:
+            return s 
+
+op_b_t = sorted(pricedis_buy.keys())
+op_s_t = sorted(pricedis_sell.keys())
+
+openprice_buy = drop_outliers(op_b_t,op_b,2)
+openprice_sell = drop_outliers(op_s_t,op_s,2)
+
+volume_buy = [pricedis_buy[k] for k in openprice_buy]
+volume_sell = [pricedis_sell[k] for k in openprice_sell]
+
+openprice_all = sorted(openprice_buy + openprice_sell)
+
+for item,count in Counter(openprice_all).most_common():
+    if count != 1:
+        openprice_all.remove(item)
+        
+for i in range(len(openprice_all)):
+    if openprice_all[i] not in openprice_buy:
+        openprice_buy.insert(i,openprice_all[i])
+        volume_buy.insert(i,0)
+          
+for i in range(len(openprice_all)):
+    if openprice_all[i] not in openprice_sell:
+        openprice_sell.insert(i,openprice_all[i])
+        volume_sell.insert(i,0)
+
+print len(openprice_all)
+
+fig = plt.figure(figsize =(20,10))
+x = np.arange(len(openprice_all))
+y_buy= np.array(volume_buy)
+y_sell = np.array(volume_sell)
+
+number_of_xticks = int(raw_input('Please inpute the number of Xticks you want:\t'))
+sp = (len(openprice_all)/ number_of_xticks)
+locs = np.arange(len(openprice_all),step = sp)
+
+plt.xlim(0,max(locs))
+plt.bar(x, +y_buy,color = 'blue',label = 'Buy')
+plt.bar(x, -y_sell,color = 'red', label = 'Sell')
+
+#locs_t = np.arange(len(openprice_all),step = sp).tolist()
+#if len(openprice_all) not in locs_t:
+#    locs_t.append(len(openprice_all)-1)
+#locs = np.asarray(locs_t)
+
+plt.xticks(locs,np.array(openprice_all)[locs], rotation="vertical")
+fig.autofmt_xdate()
+plt.axvline(x=index_loc(current_quote,openprice_all),ymin = 0, ymax = 1, linewidth = 2, color = 'black',label = 'Current Price')
+
+xmin,xmax = plt.xlim()
+ymin,ymax = plt.ylim()
+
+ax = fig.add_subplot(111)
+ax.set_title('Position Distribution of %s' % symbol_name,fontsize = 18)
+ax.set_xlabel('Open Price',fontsize = 18)
+ax.set_ylabel('Volume', fontsize = 18)
+
+#ax.text(xmax-20,ymax-20,"Average Buy Price = %s\nAverage Sell Price = %s\nCurrent Price = %s"
+#        % (round(np.mean(op_bi),5),round(np.mean(op_si),5),current_quote),
+#        style='italic', bbox={'facecolor':'red', 'alpha':0.5, 'pad':10})
+
+if 'XA' in symbol_name or 'xa' in symbol_name:
+    ax.annotate("Average Buy Price = %s\nTotal Long Position = %s\nAverage Sell Price = %s\nTotal Short Position = %s\nCurrent Price = %s"
+                % (round(np.average(op_bi,weights = vol_b_f),2),np.sum(vol_b_f),round(np.average(op_si,weights = vol_s_f),2),np.sum(vol_s_f),current_quote),
+                xy = (1,0),xycoords='axes fraction', fontsize=16,
+                horizontalalignment='right', verticalalignment='bottom')
+elif 'jpy' in symbol_name or 'JPY' in symbol_name:
+    ax.annotate("Average Buy Price = %s\nTotal Long Position = %s\nAverage Sell Price = %s\nTotal Short Position = %s\nCurrent Price = %s"
+                % (round(np.average(op_bi,weights = vol_b_f),3),np.sum(vol_b_f),round(np.average(op_si,weights = vol_s_f),3),np.sum(vol_s_f),current_quote),
+                xy = (1,0),xycoords='axes fraction', fontsize=16,
+                horizontalalignment='right', verticalalignment='bottom')
+else:
+    ax.annotate("Average Buy Price = %s\nTotal Long Position = %s\nAverage Sell Price = %s\nTotal Short Position = %s\nCurrent Price = %s"
+                % (round(np.average(op_bi,weights = vol_b_f),5),np.sum(vol_b_f),round(np.average(op_si,weights = vol_s_f),5),np.sum(vol_s_f),current_quote),
+                xy = (1,0),xycoords='axes fraction', fontsize=16,
+                horizontalalignment='right', verticalalignment='bottom')
+
+legend = plt.legend(loc = 1,shadow = True, fontsize = 16)
+
+plt.tight_layout()
+plt.show()
+#plt.savefig('C:\Users\chang.liu\Desktop\Price_dis\%s'% symbol_name )
