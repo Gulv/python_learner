@@ -1,0 +1,95 @@
+import MySQLdb
+import numpy as np
+import re
+from time import gmtime, strftime
+from datetime import datetime
+
+#define raw inputs
+symbol_name = raw_input('Please Enter the Symbol That You Would Like to Check:\t')
+start_time = raw_input('Please Inoput the Start Time in yyyy-mm-dd hh:mm:ss:\t')
+current_time = strftime("%Y-%m-%d %H:%M:%S", gmtime())
+end_time_t = raw_input('Please Input the End Time in yyyy-mm-dd hh-mm-ss. Input \'current time\' if You Wish to Use Current Time:\t')
+if end_time_t == 'current time':
+    end_time = current_time
+else:
+    end_time = end_time_t
+
+#extract data from orders report
+conn = MySQLdb.connect(host = "localhost", user = "root", passwd = "######",
+                       db = "####", port = 3306, charset = "utf8")
+cur = conn.cursor(cursorclass = MySQLdb.cursors.DictCursor)
+cur.execute("select * from orders where Symbol = '%s' and Time between '%s' and '%s'"
+            % (symbol_name,start_time,end_time))
+open_lines = cur.fetchall()
+
+#extract data from closed trade report
+conn = MySQLdb.connect(host = "localhost", user = "root", passwd = "#####",
+                       db = "####", port = 3306, charset = "utf8")
+cur = conn.cursor(cursorclass = MySQLdb.cursors.DictCursor)
+cur.execute("select * from closed_trade where Symbol = '%s' and ClosedTime between '%s' and '%s'"
+            % (symbol_name,start_time,end_time))
+closed_lines = cur.fetchall()
+
+#extract current data
+conn = MySQLdb.connect(host = "localhost", user = "root", passwd = "#####",
+                       db = "#####", port = 3306, charset = "utf8")
+cur = conn.cursor(cursorclass = MySQLdb.cursors.DictCursor)
+cur.execute("select BID from mt4_prices where SYMBOL ='%s'" % symbol_name)
+quote = cur.fetchall()
+
+cur.close()
+conn.close()
+
+for quotes in quote:
+    current_quote = quotes['BID']
+
+vol_opensell_t,vol_closedsell_t,vol_openbuy_t,vol_closedbuy_t = ([] for i in range(4))
+
+for line in open_lines:
+    if line['Type']== 'buy':
+        vol_openbuy_t.append(line['Volume'])
+    else:
+        vol_opensell_t.append(line['Volume'])
+
+#gid rid of closed postion which was opened after start time
+closed_lines_filterred = [line for line in closed_lines if line['OpenTime'] < datetime.strptime(start_time,"%Y-%m-%d %H:%M:%S")]
+
+for line in closed_lines_filterred:
+    if line['Type']== 'buy':
+        vol_closedbuy_t.append(line['Volume'])
+    else:
+        vol_closedsell_t.append(line['Volume'])
+
+vol_opensell = [float(i.encode('utf')) for i in vol_opensell_t]
+vol_closedsell = [float(i.encode('utf')) for i in vol_closedsell_t]
+vol_openbuy = [float(i.encode('utf')) for i in vol_openbuy_t]
+vol_closedbuy = [float(i.encode('utf')) for i in vol_closedbuy_t]
+
+vol_at_bid = sum(vol_opensell) + sum(vol_closedbuy)
+vol_at_ask = sum(vol_openbuy) + sum(vol_closedsell)
+
+deviation_factor = float(raw_input('Please Inpute the deviation in pips(cents for bullions):\t'))
+
+def caculate_value(bidvol,askvol,df):
+    if df > 0:
+        realised_value = df*(askvol-bidvol)
+    else:
+        realised_value = df*(askvol-bidvol)
+    return realised_value
+
+#if (re.search('usd',symbol_name).span()) == [3,6]:
+outcome = round(caculate_value(vol_at_bid,vol_at_ask,deviation_factor)*10,2)
+print "The outcome from this deviation in dollar value is:\t %r" % (outcome)
+
+'''
+elif(re.search('usd',symbol_name).span()) == [0,3]:
+    outcome = caculate_value(vol_at_bid,vol_at_ask.deviation_factor)/current_quote
+    print outcome
+    print "The outcome from this deviation in dollar value is:\t '%s'" % outcome
+'''
+
+
+
+    
+
+
