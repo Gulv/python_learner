@@ -17,7 +17,7 @@ else:
 
 #extract data from orders report
 conn = MySQLdb.connect(host = "localhost", user = "root", passwd = "dealer1073.",
-                       db = "####", port = 3306, charset = "utf8")
+                       db = "aetos", port = 3306, charset = "utf8")
 cur = conn.cursor(cursorclass = MySQLdb.cursors.DictCursor)
 cur.execute("select * from orders where Symbol = '%s' and Time between '%s' and '%s'"
             % (symbol_name,start_time,end_time))
@@ -25,11 +25,19 @@ open_lines = cur.fetchall()
 
 #extract data from closed trade report
 conn = MySQLdb.connect(host = "localhost", user = "root", passwd = "dealer1073.",
-                       db = "####", port = 3306, charset = "utf8")
+                       db = "aetos", port = 3306, charset = "utf8")
 cur = conn.cursor(cursorclass = MySQLdb.cursors.DictCursor)
 cur.execute("select * from closed_trade where Symbol = '%s' and ClosedTime between '%s' and '%s'"
             % (symbol_name,start_time,end_time))
 closed_lines = cur.fetchall()
+
+
+conn = MySQLdb.connect(host = "localhost", user = "root", passwd = "dealer1073.",
+                       db = "aetos", port = 3306, charset = "utf8")
+cur = conn.cursor(cursorclass = MySQLdb.cursors.DictCursor)
+cur.execute("select * from closed_trade where Symbol = '%s' and OpenTime between '%s' and '%s'"
+            % (symbol_name,start_time,end_time))
+closed_lines_late = cur.fetchall()
 
 G7 = ['audusd','eurusd','gbpusd','usdchf','nzdusd','usdjpy','usdcad']
 if 'usd' not in symbol_name or (re.search('usd',symbol_name).span()) == (0,3):
@@ -59,7 +67,7 @@ for quotes in quote:
 #print quote_aud,quote_chf,quote_cad,quote_jpy,quote_eur,quote_gbp
 
 
-vol_opensell_t,vol_closedsell_t,vol_openbuy_t,vol_closedbuy_t = ([] for i in range(4))
+vol_opensell_t,vol_closedsell_t,vol_openbuy_t,vol_closedbuy_t,vol_opensell_late,vol_openbuy_late = ([] for i in range(6))
 
 for line in open_lines:
     if line['Type']== 'buy':
@@ -70,19 +78,29 @@ for line in open_lines:
 #gid rid of closed postion which was opened after start time
 closed_lines_filterred = [line for line in closed_lines if line['OpenTime'] < datetime.strptime(start_time,"%Y-%m-%d %H:%M:%S")]
 
+closed_line_filterred_late = [line for line in closed_lines_late if line['ClosedTime'] > datetime.strptime(end_time,"%Y-%m-%d %H:%M:%S")]
+
 for line in closed_lines_filterred:
     if line['Type']== 'buy':
         vol_closedbuy_t.append(line['Volume'])
     else:
         vol_closedsell_t.append(line['Volume'])
 
+for line in closed_line_filterred_late:
+    if line['Type']== 'buy':
+        vol_openbuy_late.append(line['Volume'])
+    else:
+        vol_opensell_late.append(line['Volume'])
+
 vol_opensell = [float(i.encode('utf')) for i in vol_opensell_t]
 vol_closedsell = [float(i.encode('utf')) for i in vol_closedsell_t]
 vol_openbuy = [float(i.encode('utf')) for i in vol_openbuy_t]
 vol_closedbuy = [float(i.encode('utf')) for i in vol_closedbuy_t]
+vol_opensell_l = [float(i.encode('utf')) for i in vol_opensell_late]
+vol_openbuy_l = [float(i.encode('utf')) for i in vol_openbuy_late]
 
-vol_at_bid = sum(vol_opensell) + sum(vol_closedbuy)
-vol_at_ask = sum(vol_openbuy) + sum(vol_closedsell)
+vol_at_bid = sum(vol_opensell) + sum(vol_closedbuy) + sum(vol_opensell_l)
+vol_at_ask = sum(vol_openbuy) + sum(vol_closedsell) + sum(vol_openbuy_l)
 
 deviation_factor = float(raw_input('Please Inpute the deviation in pips(dollars for bullions):\t'))
 
@@ -103,8 +121,18 @@ elif 'usd' not in symbol_name or (re.search('usd',symbol_name).span()) == (0,3):
     else:
         outcome = round(caculate_value(vol_at_bid,vol_at_ask,deviation_factor)*10/float(ex_rate),2)
 
-print sum(vol_openbuy),sum(vol_opensell),sum(vol_closedbuy),sum(vol_closedsell)
-print ex_rate
+total_open_buy = round(sum(vol_openbuy)+sum(vol_openbuy_l),2)
+total_open_sell = round(sum(vol_opensell)+sum(vol_opensell_l),2)
+total_closed_buy = round(sum(vol_closedbuy),2)
+total_closed_sell = round(sum(vol_closedsell),2)
+
+
+print 'Total Open Buy: %r' %(total_open_buy)
+print 'Total Open Sell: %r' %(total_open_sell)
+print 'Total Closed Buy: %r' %(total_closed_buy)
+print 'Total Closed Sell: %r' %(total_closed_sell)
+
+#print ex_rate
         
 print 'The outcome from this deviation in dollar value is:\t %s' % (outcome)
 
