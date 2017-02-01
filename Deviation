@@ -17,7 +17,7 @@ else:
 
 #extract data from orders report
 conn = MySQLdb.connect(host = "localhost", user = "root", passwd = "dealer1073.",
-                       db = "aetos", port = 3306, charset = "utf8")
+                       db = "####", port = 3306, charset = "utf8")
 cur = conn.cursor(cursorclass = MySQLdb.cursors.DictCursor)
 cur.execute("select * from orders where Symbol = '%s' and Time between '%s' and '%s'"
             % (symbol_name,start_time,end_time))
@@ -25,7 +25,7 @@ open_lines = cur.fetchall()
 
 #extract data from closed trade report
 conn = MySQLdb.connect(host = "localhost", user = "root", passwd = "dealer1073.",
-                       db = "aetos", port = 3306, charset = "utf8")
+                       db = "####", port = 3306, charset = "utf8")
 cur = conn.cursor(cursorclass = MySQLdb.cursors.DictCursor)
 cur.execute("select * from closed_trade where Symbol = '%s' and ClosedTime between '%s' and '%s'"
             % (symbol_name,start_time,end_time))
@@ -33,7 +33,7 @@ closed_lines = cur.fetchall()
 
 
 conn = MySQLdb.connect(host = "localhost", user = "root", passwd = "dealer1073.",
-                       db = "aetos", port = 3306, charset = "utf8")
+                       db = "####", port = 3306, charset = "utf8")
 cur = conn.cursor(cursorclass = MySQLdb.cursors.DictCursor)
 cur.execute("select * from closed_trade where Symbol = '%s' and OpenTime between '%s' and '%s'"
             % (symbol_name,start_time,end_time))
