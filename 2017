@@ -13,10 +13,23 @@ cur = conn.cursor(cursorclass = MySQLdb.cursors.DictCursor)
 cur.execute('select * from client_statement')
 lines = cur.fetchall()
 
-volume_eurusd,volume_gbpusd,volume_usdjpy,volume_audusd,volume_nzdusd,volume_usdchf,volume_usdcad,volume_xauusd,volume_xagusd,volume_others = ([] for i in range(10))
+symbol_index = ['audusd','eurusd','gbpusd','usdjpy','usdcad','usdchf','nzdusd',
+                'audcad','audchf','audjpy','audnzd','cadchf','cadjpy','chfjpy',
+                'euraud','eurcad','eurchf','eurgbp','eurjpy','eurnzd','gbpaud',
+                'gbpchf','gbpcad','gbpjpy','gbpnzd','nzdjpy','xauusd','xagusd',
+                'usoil','us30','nas100','spx500','copper','dxy']
+
+volume_index = [[] for i in range(len(symbol_index))]
+
+for i in volume_index:
+    i = symbol_index[i]
+
+
+
+symbol_volume = dict(zip(symbol_index,volume_index))
 
 for line in lines:
-    if line['Symbol'] == 'eurusd':
+    if line['Symbol'] == symbol_volume(keys):
         volume_eurusd.append(line['Volume'])
     elif line['Symbol'] == 'audusd':
         volume_audusd.append(line['Volume'])
