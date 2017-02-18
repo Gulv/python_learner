@@ -40,15 +40,15 @@ sizes = symbol_volume.values()
 colors_material = ['yellowgreen','gold','lightskyblue',
                    'lightcoral','red','teal','aqua','skyblue',
                    'wheat','pink','crimson','plum','darkblue',
-                   'slateblue','cyan','snow','lightcoral','sienna',
+                   'slateblue','cyan','snow','lightcoral','lime',
                    'navy','thistle','lavender','orange']
-colors = []
-color_index = random.sample(colors_material,len(symbol_volume))
 
+colors = random.sample(colors_material,len(symbol_volume))
 
+'''
 for i in range(len(symbol_volume)):
            colors.append(color_index[i])
-
+'''
 
 fig1, ax1 = plt.subplots()
 ax1.pie(sizes, labels=labels, colors = colors,autopct='%1.1f%%',
@@ -58,5 +58,7 @@ ax1.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
 #plt.title('Volume Allocation', bbox={'facecolor':'0.8', 'pad':5})
 
 plt.show()
+
+
 
 
