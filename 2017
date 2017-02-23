@@ -7,6 +7,8 @@ from time import gmtime, strftime
 from datetime import datetime
 import matplotlib.pyplot as plt
 from collections import Counter
+from collections import OrderedDict
+
 
 conn = MySQLdb.connect(host = "localhost", user = "root", passwd = "dealer1073.",
                        db = "aetos", port = 3306, charset = "utf8")
@@ -22,7 +24,8 @@ symbol_index = ['audusd','eurusd','gbpusd','usdjpy','usdcad','usdchf','nzdusd',
                 'audcad','audchf','audjpy','audnzd','cadchf','cadjpy','chfjpy',
                 'euraud','eurcad','eurchf','eurgbp','eurjpy','eurnzd','gbpaud',
                 'gbpchf','gbpcad','gbpjpy','gbpnzd','nzdjpy','xauusd','xagusd',
-                'usoil','us30','nas100','spx500','copper','dxy','others']
+                'usoil','us30','nas100','spx500','copper','dxy','uk100',
+                'jpn225','others']
 
 volume_index = [[] for i in range(len(symbol_index))]
 
@@ -47,19 +50,24 @@ for k,v in symbol_volume.items():
         del symbol_volume[k]
 
 sizes_t = symbol_volume.values()
-labels_t = [i[0] for i in symbol_volume.keys()]
+labels_t = [i for i in symbol_volume.keys()]
 sizes_tem = sorted(sizes_t,reverse = True)
 
 sizes =sorted([sum(i) for i in sizes_t],reverse = True)
 
 #sizes = sorted(sizes_t,reverse = True)
 
-labels = []
-for i in range(len(sizes)):
-    labels.append(labels_t[sizes_t.index(sizes_tem[i])])
+index_new_dup = []
+for p1,i1 in enumerate(sizes_tem):
+   for p2,i2 in enumerate(sizes_t):
+       if i1 == i2:
+           index_new_dup.append(p2)
 
+index_new = list(OrderedDict.fromkeys(index_new_dup))
 
-
+labels = [labels_t[i] for i in index_new]
+                                 
+#labels.append(labels_t[sizes_t.index(sizes_tem[i])])
 
 colors_material = ['yellowgreen','gold','lightskyblue',
                    'lightcoral','red','teal','mediumpurple','skyblue',
@@ -68,7 +76,7 @@ colors_material = ['yellowgreen','gold','lightskyblue',
                    'navy','thistle','lavender','orange']
 colors = random.sample(colors_material,len(symbol_volume))
 
-
+'''
 patches,texts = plt.pie(sizes,colors = colors, startangle = 90)
 plt.legend(patches,labels,loc = 'best')
 plt.axis('equal')
@@ -78,14 +86,12 @@ plt.tight_layout()
 fig1, ax1 = plt.subplots()
 ax1.pie(sizes, labels=labels, colors = colors,#autopct='%1.1f%%',
         startangle=90)
-'''
+
 
 
 #plt.title('Volume Allocation', bbox={'facecolor':'0.8', 'pad':5})
 
 plt.show()
-
-
 
 
 
