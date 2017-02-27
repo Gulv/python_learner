@@ -24,8 +24,9 @@ symbol_index = ['audusd','eurusd','gbpusd','usdjpy','usdcad','usdchf','nzdusd',
                 'audcad','audchf','audjpy','audnzd','cadchf','cadjpy','chfjpy',
                 'euraud','eurcad','eurchf','eurgbp','eurjpy','eurnzd','gbpaud',
                 'gbpchf','gbpcad','gbpjpy','gbpnzd','nzdjpy','xauusd','xagusd',
-                'usoil','us30','nas100','spx500','copper','dxy','uk100',
-                'jpn225','others']
+                'usoil','ukoil','ngas','us30','nas100','spx500','copper','dxy',
+                'uk100','jpn225','hkh40','hkg50','palladium','platinum','aus200',
+                'agricultural','xaueur','xageur','others']
 
 volume_index = [[] for i in range(len(symbol_index))]
 
@@ -33,6 +34,9 @@ volume_index = [[] for i in range(len(symbol_index))]
 for line in lines:
     if line['Symbol'] in symbol_index:
         volume_index[symbol_index.index(line['Symbol'])].append(line['Volume'])
+    elif line['Symbol'] == 'cocoa' or 'sugar' or 'coffee' or 'cotton' or 'livecattle' or\
+         'corn' or 'soybeans' or 'wheat' or 'soybeanoil': 
+        volume_index[symbol_index.index('agricultural')].append(line['Volume'])
     else:
         volume_index[symbol_index.index('others')].append(line['Volume'])
 
@@ -41,8 +45,8 @@ for i in range(len(volume_index)):
 
 symbol_volume = dict(zip(symbol_index,volume_index))
 
-def drop_outliers(data,population,m = 2):
-    data = [i for i in data if i < sum(population)/100]
+def drop_outliers(data):
+    data = [i for i in data if i > 1]
     return data
 
 for k,v in symbol_volume.items():
@@ -51,14 +55,15 @@ for k,v in symbol_volume.items():
 
 sizes_t = symbol_volume.values()
 labels_t = [i for i in symbol_volume.keys()]
-sizes_tem = sorted(sizes_t,reverse = True)
+sizes_t2 = sorted([sum(i) for i in sizes_t],reverse = True)
+sizes_t3 = sorted([i for i in sizes_t if sum(i) > sum(sizes_t2)/100],reverse = True)
 
-sizes =sorted([sum(i) for i in sizes_t],reverse = True)
+sizes =sorted([sum(i) for i in sizes_t3],reverse = True)
 
 #sizes = sorted(sizes_t,reverse = True)
 
 index_new_dup = []
-for p1,i1 in enumerate(sizes_tem):
+for p1,i1 in enumerate(sizes_t3):
    for p2,i2 in enumerate(sizes_t):
        if i1 == i2:
            index_new_dup.append(p2)
@@ -73,7 +78,8 @@ colors_material = ['yellowgreen','gold','lightskyblue',
                    'lightcoral','red','teal','mediumpurple','skyblue',
                    'wheat','pink','crimson','plum','salmon',
                    'slateblue','cyan','snow','lightcoral','lime',
-                   'navy','thistle','lavender','orange']
+                   'gray','thistle','lavender','orange','ghostwhite',
+                   'powderblue','chartreuse','gray','yellow']
 colors = random.sample(colors_material,len(symbol_volume))
 
 '''
@@ -81,17 +87,17 @@ patches,texts = plt.pie(sizes,colors = colors, startangle = 90)
 plt.legend(patches,labels,loc = 'best')
 plt.axis('equal')
 plt.tight_layout()
-
 '''
+
+explode = [0.17 for i in range(len(sizes))]
+
 fig1, ax1 = plt.subplots()
-ax1.pie(sizes, labels=labels, colors = colors,#autopct='%1.1f%%',
-        startangle=90)
+ax1.pie(sizes, explode=explode, labels=labels, colors = colors, autopct='%1.1f%%',
+        startangle=90,labeldistance=1.2)
+#plt.legend(pie[0], labels, loc="upper corner")
 
 
 
 #plt.title('Volume Allocation', bbox={'facecolor':'0.8', 'pad':5})
 
 plt.show()
-
-
-
