@@ -29,33 +29,51 @@ symbol_index = ['audusd','eurusd','gbpusd','usdjpy','usdcad','usdchf','nzdusd',
                 'agricultural','xaueur','xageur','others']
 
 volume_index = [[] for i in range(len(symbol_index))]
-
+points_index = [[] for i in range(len(symbol_index))]
 
 for line in lines:
     if line['Symbol'] in symbol_index:
         volume_index[symbol_index.index(line['Symbol'])].append(line['Volume'])
+        points_index[symbol_index.index(line['Symbol'])].append(line['Pip']/10)
     elif line['Symbol'] == 'cocoa' or 'sugar' or 'coffee' or 'cotton' or 'livecattle' or\
          'corn' or 'soybeans' or 'wheat' or 'soybeanoil': 
         volume_index[symbol_index.index('agricultural')].append(line['Volume'])
+        points_index[symbol_index.index('agricultural')].append(line['Pip']/10)                
     else:
         volume_index[symbol_index.index('others')].append(line['Volume'])
+        points_index[symbol_index.index('others')].append(line['Pip']/10)
 
 for i in range(len(volume_index)):
     volume_index[i] = [sum(float(k.encode('utf')) for k in volume_index[i])]
+    #points_index[i] = [sum(float(k.encode('utf')) for k in point_index[i])]
 
 symbol_volume = dict(zip(symbol_index,volume_index))
+symbol_points = dict(zip(symbol_index,points_index))
 
-def drop_outliers(data):
-    data = [i for i in data if i > 1]
-    return data
 
-for k,v in symbol_volume.items():
-    if v == [0]:
-        del symbol_volume[k]
+def drop_empty(data_dict):
+    for k,v in data_dict.items():
+        if v == [0] or v ==[]:
+            del data_dict[k]
+            
+drop_empty(symbol_volume)
+drop_empty(symbol_points)
+
+number_of_profit_orders,number_of_loss_orders,profit_orders_average,loss_order_average= ([] for i in range(4))
+
+
+for k,v in symbol_points.items():
+    number_of_profit_orders.append(len([ i for i in v if i >0]))
+    number_of_loss_orders.append(len([i for i in v if i<= 0]))
+    profit_orders_average.append(np.average([i for i in v if i >0]))
+    profit_orders_average.append(np.average([i for i in v if i <= 0]))
+
+
 
 sizes_t = symbol_volume.values()
 labels_t = [i for i in symbol_volume.keys()]
 sizes_t2 = sorted([sum(i) for i in sizes_t],reverse = True)
+#sizes_t3 = sorted([i for i in sizes_t],reverse = True)
 sizes_t3 = sorted([i for i in sizes_t if sum(i) > sum(sizes_t2)/100],reverse = True)
 
 sizes =sorted([sum(i) for i in sizes_t3],reverse = True)
@@ -81,23 +99,24 @@ colors_material = ['yellowgreen','gold','lightskyblue',
                    'gray','thistle','lavender','orange','ghostwhite',
                    'powderblue','chartreuse','gray','yellow']
 colors = random.sample(colors_material,len(symbol_volume))
-
-'''
-patches,texts = plt.pie(sizes,colors = colors, startangle = 90)
-plt.legend(patches,labels,loc = 'best')
-plt.axis('equal')
-plt.tight_layout()
-'''
-
 explode = [0.17 for i in range(len(sizes))]
+patches,texts = plt.pie(sizes,colors = colors, explode = explode, startangle = 90,radius = 1.2)
 
-fig1, ax1 = plt.subplots()
-ax1.pie(sizes, explode=explode, labels=labels, colors = colors, autopct='%1.1f%%',
-        startangle=90,labeldistance=1.2)
-#plt.legend(pie[0], labels, loc="upper corner")
+porcent = [ 100*i/sum(sizes) for i in sizes]
+
+legend_labels = ['{0} - {1:1.2f} %'.format(i,j) for i,j in zip(labels, porcent)]
+
+sort_legend = True
+if sort_legend:
+    patches, labels, dummy =  zip(*sorted(zip(patches, legend_labels, sizes),
+                                          key=lambda x: x[2],
+                                          reverse=True))
+
+plt.legend(patches, legend_labels, loc='best',fontsize=12)
 
 
-
-#plt.title('Volume Allocation', bbox={'facecolor':'0.8', 'pad':5})
+#plt.axis('equal')
+#plt.tight_layout()
 
 plt.show()
+
