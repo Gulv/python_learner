@@ -75,20 +75,6 @@ for k,v in symbol_points.items():
         profit_orders_average.append(np.average([i for i in v if i >=0]))
         loss_orders_average.append(np.average([i for i in v if i < 0]))
 
-
-x = 
-
-
-
-
-
-
-
-
-
-
-
-
 sizes_t = symbol_volume.values()
 labels_t = [i for i in symbol_volume.keys()]
 sizes_t2 = sorted([sum(i) for i in sizes_t],reverse = True)
@@ -119,10 +105,12 @@ colors_material = ['yellowgreen','gold','lightskyblue',
                    'powderblue','chartreuse','gray','yellow']
 colors = random.sample(colors_material,len(symbol_volume))
 explode = [0.17 for i in range(len(sizes))]
+
+
+fig =plt.figure(figsize =(20,20))
+ax1 = fig.add_subplot(211)
 patches,texts = plt.pie(sizes,colors = colors, explode = explode, startangle = 90,radius = 1.2)
-
 porcent = [ 100*i/sum(sizes) for i in sizes]
-
 legend_labels = ['{0} - {1:1.2f} %'.format(i,j) for i,j in zip(labels, porcent)]
 
 sort_legend = True
@@ -130,9 +118,15 @@ if sort_legend:
     patches, labels, dummy =  zip(*sorted(zip(patches, legend_labels, sizes),
                                           key=lambda x: x[2],
                                           reverse=True))
-
 plt.legend(patches, legend_labels, loc='best',fontsize=12)
 
+ax2 = fig.add_subplot(212)
+x = np.arange(len(symbol_points))
+y1 =np.array(number_of_profit_orders)
+y2 = np.array(number_of_loss_orders)
+
+plt.bar(x, +y1,color = 'blue')
+plt.bar(x, -y2,color = 'red')
 
 #plt.axis('equal')
 #plt.tight_layout()
