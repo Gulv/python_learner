@@ -59,14 +59,33 @@ def drop_empty(data_dict):
 drop_empty(symbol_volume)
 drop_empty(symbol_points)
 
-number_of_profit_orders,number_of_loss_orders,profit_orders_average,loss_order_average= ([] for i in range(4))
+number_of_profit_orders,number_of_loss_orders,profit_orders_average,loss_orders_average= ([] for i in range(4))
 
 
 for k,v in symbol_points.items():
-    number_of_profit_orders.append(len([ i for i in v if i >0]))
-    number_of_loss_orders.append(len([i for i in v if i<= 0]))
-    profit_orders_average.append(np.average([i for i in v if i >0]))
-    profit_orders_average.append(np.average([i for i in v if i <= 0]))
+    number_of_profit_orders.append(len([ i for i in v if i >= 0]))
+    number_of_loss_orders.append(len([i for i in v if i< 0]))
+    if all(i >= 0 for i in v):
+        profit_orders_average.append(np.average([i for i in v]))
+        loss_orders_average.append(0)
+    elif all(i <= 0 for i in v):
+        profit_orders_average.append(0)
+        loss_orders_average.append(np.average([i for i in v]))
+    else:
+        profit_orders_average.append(np.average([i for i in v if i >=0]))
+        loss_orders_average.append(np.average([i for i in v if i < 0]))
+
+
+x = 
+
+
+
+
+
+
+
+
+
 
 
 
@@ -119,4 +138,3 @@ plt.legend(patches, legend_labels, loc='best',fontsize=12)
 #plt.tight_layout()
 
 plt.show()
-
