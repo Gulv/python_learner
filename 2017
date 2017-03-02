@@ -50,14 +50,26 @@ for i in range(len(volume_index)):
 symbol_volume = dict(zip(symbol_index,volume_index))
 symbol_points = dict(zip(symbol_index,points_index))
 
-
-def drop_empty(data_dict):
+def reform_volume(data_dict):
     for k,v in data_dict.items():
-        if v == [0] or v ==[]:
+        data_dict.update({k:sum(v)})
+        
+def sort_volume(data_dict):
+    for k,v in data_dict.items():
+        if v ==0:
+            del data_dict[k]
+        elif 100*v < sum(symbol_volume.values()):
             del data_dict[k]
             
-drop_empty(symbol_volume)
-drop_empty(symbol_points)
+def drop_outliers(data_dict,reflection_dict):
+    for k,v in data_dict.items():
+            if k not in reflection_dict.keys():
+                del data_dict[k]
+
+    
+reform_volume(symbol_volume)
+sort_volume(symbol_volume)            
+drop_outliers(symbol_points,symbol_volume)
 
 number_of_profit_orders,number_of_loss_orders,profit_orders_average,loss_orders_average= ([] for i in range(4))
 
@@ -76,17 +88,11 @@ for k,v in symbol_points.items():
         loss_orders_average.append(np.average([i for i in v if i < 0]))
 
 sizes_t = symbol_volume.values()
-labels_t = [i for i in symbol_volume.keys()]
-sizes_t2 = sorted([sum(i) for i in sizes_t],reverse = True)
-#sizes_t3 = sorted([i for i in sizes_t],reverse = True)
-sizes_t3 = sorted([i for i in sizes_t if sum(i) > sum(sizes_t2)/100],reverse = True)
-
-sizes =sorted([sum(i) for i in sizes_t3],reverse = True)
-
-#sizes = sorted(sizes_t,reverse = True)
+labels_t = symbol_volume.keys()
+sizes =sorted(sizes_t,reverse = True)
 
 index_new_dup = []
-for p1,i1 in enumerate(sizes_t3):
+for p1,i1 in enumerate(sizes):
    for p2,i2 in enumerate(sizes_t):
        if i1 == i2:
            index_new_dup.append(p2)
@@ -106,10 +112,10 @@ colors_material = ['yellowgreen','gold','lightskyblue',
 colors = random.sample(colors_material,len(symbol_volume))
 explode = [0.17 for i in range(len(sizes))]
 
-
-fig =plt.figure(figsize =(20,20))
+fig =plt.figure(figsize =(10,10))
+fig.autofmt_xdate()
 ax1 = fig.add_subplot(211)
-patches,texts = plt.pie(sizes,colors = colors, explode = explode, startangle = 90,radius = 1.2)
+patches,texts = plt.pie(sizes,colors = colors, startangle = 90,radius = 1.2)
 porcent = [ 100*i/sum(sizes) for i in sizes]
 legend_labels = ['{0} - {1:1.2f} %'.format(i,j) for i,j in zip(labels, porcent)]
 
@@ -121,14 +127,41 @@ if sort_legend:
 plt.legend(patches, legend_labels, loc='best',fontsize=12)
 
 ax2 = fig.add_subplot(212)
+
 x = np.arange(len(symbol_points))
 y1 =np.array(number_of_profit_orders)
 y2 = np.array(number_of_loss_orders)
+y3 = np.array(profit_orders_average)
+y4 = np.array(loss_orders_average)
 
-plt.bar(x, +y1,color = 'blue')
-plt.bar(x, -y2,color = 'red')
+plt.xticks(x,symbol_points.keys())
+plt.xlim(0,len(symbol_points))
 
-#plt.axis('equal')
-#plt.tight_layout()
+plt.bar(x-0.25, +y1,width=0.5,color = 'blue',align='center')
+plt.bar(x-0.25, -y2,width=0.5,color = 'red',align='center')
+ax2.set_xlabel('Symbol',fontsize = 12)
+ax2.set_ylabel('Number of Orders', fontsize = 12)
+
+ax3 = ax2.twinx()
+plt.bar(x+0.25, +y3,width=0.5,color = 'yellow',align='center')
+plt.bar(x+0.25, +y4,width=0.5,color = 'green',align='center')
+ax3.set_title('Trade Analysis of %s' % client,fontsize = 12)
+#ax3.set_xlabel('Symbol',fontsize = 12)
+ax3.set_ylabel('Average Points Per Order', fontsize = 12)
+
+def align_yaxis(ax1, v1, ax2, v2):
+    """adjust ax2 ylimit so that v2 in ax2 is aligned to v1 in ax1"""
+    _, y1 = ax1.transData.transform((0, v1))
+    _, y2 = ax2.transData.transform((0, v2))
+    inv = ax2.transData.inverted()
+    _, dy = inv.transform((0, 0)) - inv.transform((0, y1-y2))
+    miny, maxy = ax2.get_ylim()
+    ax2.set_ylim(miny+dy, maxy+dy)
+
+align_yaxis(ax2, 0, ax3, 0)
+
+#ax2.legend = plt.legend(loc = 1,shadow = True, fontsize = 16)
+
+plt.tight_layout()
 
 plt.show()
