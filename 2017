@@ -108,7 +108,7 @@ colors_material = ['yellowgreen','gold','lightskyblue',
                    'wheat','pink','crimson','plum','salmon',
                    'slateblue','cyan','snow','lightcoral','lime',
                    'gray','thistle','lavender','orange','ghostwhite',
-                   'powderblue','chartreuse','gray','yellow']
+                   'powderblue','chartreuse','m','yellow']
 colors = random.sample(colors_material,len(symbol_volume))
 explode = [0.17 for i in range(len(sizes))]
 
@@ -126,31 +126,41 @@ if sort_legend:
                                           reverse=True))
 plt.legend(patches, legend_labels, loc='best',fontsize=12)
 
+#bar chart with order numbers
 ax2 = fig.add_subplot(212)
-
 x = np.arange(len(symbol_points))
 y1 =np.array(number_of_profit_orders)
 y2 = np.array(number_of_loss_orders)
-y3 = np.array(profit_orders_average)
-y4 = np.array(loss_orders_average)
 
 plt.xticks(x,symbol_points.keys())
 plt.xlim(0,len(symbol_points))
+ax2.set_ylim(-max([max(y2)*1.2,50,max(y1)*1.2]),max([max(y1)*1.2,max(y2)*1.2,50]))
+ax2.grid()
 
-plt.bar(x-0.25, +y1,width=0.5,color = 'blue',align='center')
-plt.bar(x-0.25, -y2,width=0.5,color = 'red',align='center')
+rects1 = plt.bar(x-0.25, +y1,width=0.5,color = 'blue',label = 'Number of profit orders',align='center')
+rects2 = plt.bar(x-0.25, -y2,width=0.5,color = 'red',label = 'Number of loss orders',align='center')
 ax2.set_xlabel('Symbol',fontsize = 12)
 ax2.set_ylabel('Number of Orders', fontsize = 12)
+#ax2.legend(loc = 0,shadow = True, fontsize = 12)
 
+#bar chart with average profit
 ax3 = ax2.twinx()
-plt.bar(x+0.25, +y3,width=0.5,color = 'yellow',align='center')
-plt.bar(x+0.25, +y4,width=0.5,color = 'green',align='center')
+y3 = np.array(profit_orders_average)
+y4 = np.array(loss_orders_average)
+rects3 = plt.bar(x+0.25, +y3,width=0.5,color = 'yellow',label = 'Profit order average pips',align='center')
+rects4 = plt.bar(x+0.25, +y4,width=0.5,color = 'green',label = 'Loss order average pips',align='center')
 ax3.set_title('Trade Analysis of %s' % client,fontsize = 12)
-#ax3.set_xlabel('Symbol',fontsize = 12)
 ax3.set_ylabel('Average Points Per Order', fontsize = 12)
+#ax3.legend(loc = 1,shadow = True, fontsize = 12)
+ax3.set_ylim(min([min(y4)*1.5,-max(y3)*1.5,-30]),max([-min(y4)*1.5,max(y3)*1.5,30]))
 
+#add 4 labels in one legend
+bar1,label1 = ax2.get_legend_handles_labels()
+bar2,label2 = ax3.get_legend_handles_labels()
+ax2.legend(bar1+bar2,label1+label2,loc = 0)
+
+#adjust ax2 ylimit so that v2 in ax2 is aligned to v1 in ax1
 def align_yaxis(ax1, v1, ax2, v2):
-    """adjust ax2 ylimit so that v2 in ax2 is aligned to v1 in ax1"""
     _, y1 = ax1.transData.transform((0, v1))
     _, y2 = ax2.transData.transform((0, v2))
     inv = ax2.transData.inverted()
@@ -158,9 +168,12 @@ def align_yaxis(ax1, v1, ax2, v2):
     miny, maxy = ax2.get_ylim()
     ax2.set_ylim(miny+dy, maxy+dy)
 
-align_yaxis(ax2, 0, ax3, 0)
 
-#ax2.legend = plt.legend(loc = 1,shadow = True, fontsize = 16)
+
+
+
+
+align_yaxis(ax2, 0, ax3, 0)
 
 plt.tight_layout()
 
