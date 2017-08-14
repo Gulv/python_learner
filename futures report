@@ -1,0 +1,175 @@
+# -*- coding: utf-8 -*-
+import pandas as pd
+import MySQLdb
+import heapq
+from time import gmtime, strftime
+from datetime import datetime
+from collections import Counter
+from collections import OrderedDict
+import re
+
+#symbol_name = raw_input('Please Enter the Symbol That You Would Like to Check:\t').lower()
+#start_time = raw_input('Please Inoput the Start Time in yyyy-mm-dd hh:mm:ss:\t')
+#end_time = raw_input('Please Input the End Time in yyyy-mm-dd hh-mm-ss:\t')
+
+conn = MySQLdb.connect(host = 'localhost', user = 'root', passwd = "*****",
+                       db = "ctr_db", port = 3306, charset = "utf8")
+cur = conn.cursor(cursorclass = MySQLdb.cursors.DictCursor)
+
+symbol_index = ['usoil','ukoil','ngas','us30','nas100',
+                'spx500','copper','dxy','uk100','jpn225','hkh40','hkg50','aus200']
+
+cur.execute("select * from live where Period in ('201708') and Close_Time between '2017-08-06 21:00:00' and '2017-08-12%' union\
+            select * from livef where Period in ('201708') and Close_Time between '2017-08-06 21:00:00' and '2017-08-12%' union\
+            select * from livef2 where Period in ('201708') and Close_Time between '2017-08-06 21:00:00' and '2017-08-12%' union\
+            select * from livef3 where Period in ('201708') and Close_Time between '2017-08-06 21:00:00' and '2017-08-12%' union\
+            select * from livem where Period in ('201708') and Close_Time between '2017-08-06 21:00:00' and '2017-08-12%' union\
+            select * from livef5 where Period in ('201708') and Close_Time between '2017-08-06 21:00:00' and '2017-08-12%' union\
+            select * from liveuk where Period in ('201708') and Close_Time between '2017-08-06 21:00:00' and '2017-08-12%'")
+
+lines = cur.fetchall()
+
+volume_index = [[] for i in range(len(symbol_index))]
+profit_index = [[] for i in range(len(symbol_index))]
+
+for line in lines:
+    if line['Symbol'].partition(".")[0] in symbol_index:
+        volume_index[symbol_index.index(line['Symbol'].partition(".")[0])].append(line['Volume'])
+        profit_index[symbol_index.index(line['Symbol'].partition(".")[0])].append(line['Profit'])
+
+for i in range(len(volume_index)):
+    volume_index[i] = [sum(float(k) for k in volume_index[i])]
+    profit_index[i] = [sum(float(k) for k in profit_index[i])]
+
+
+symbol_volume = dict(zip(symbol_index,volume_index))
+symbol_profit = dict(zip(symbol_index,profit_index))
+
+def reform_volume(data_dict):
+    for k,v in data_dict.items():
+        data_dict.update({k:sum(v)})
+
+def sort_volume(data_dict):
+    for k,v in data_dict.items():
+        if v ==0:
+            del data_dict[k]
+
+def most_common(lst):
+    data = Counter(lst)
+    return data.most_common(10)[0][0]
+
+
+reform_volume(symbol_volume)
+reform_volume(symbol_profit)
+
+symbol_volume_sorted =  OrderedDict(sorted(symbol_volume.items(), key=lambda t: t[1], reverse = True))
+symbol_profit_sorted =  OrderedDict(sorted(symbol_profit.items(), key=lambda t: t[1], reverse = True))
+
+client_list = []
+volume_list = []
+profit_list = []
+symbol_list = []
+
+
+for symbol in symbol_volume_sorted.keys():
+    for line in lines:
+        if line['Symbol'].partition(".")[0] == symbol:
+            symbol_list.append(line['Symbol'].partition(".")[0])
+            client_list.append(line['Login'])
+            volume_list.append(float(line['Volume']))
+            profit_list.append(float(line['Profit']))
+                
+scv_list_raw = [list(i) for i in zip(symbol_list,client_list,volume_list)]
+scp_list_raw = [list(i) for i in zip(symbol_list,client_list,profit_list)]
+
+def sort_3(data_list):
+   new_data = {}
+   for i in range(len(data_list)):
+       if (data_list[i][0],data_list[i][1]) not in new_data.keys():
+           new_data.update ({(data_list[i][0],data_list[i][1]):(data_list[i][2])})
+           for j in range(len(data_list)):
+               if data_list[i][0] == data_list[j][0] and data_list[i][1] == data_list[j][1] and i !=j:
+                   data_list[i][2] = data_list[i][2] + data_list[j][2]                
+                   new_data.update ({(data_list[i][0],data_list[i][1]):(data_list[i][2])})
+   return new_data
+
+scv_dict = OrderedDict(sorted((sort_3(scv_list_raw)).items(),key=lambda t: t[1], reverse = True)) #symbol_client_volume
+scp_dict = OrderedDict(sorted((sort_3(scp_list_raw)).items(),key=lambda t: t[1], reverse = True))
+
+#scv_list = [[scv_dict.keys()[i][0],scv_dict.keys()[i][1],scv_dict.values()[i]] for i in range(len(scv_dict))]
+#scp_list = [[scp_dict.keys()[i][0],scp_dict.keys()[i][1],scp_dict.values()[i]] for i in range(len(scp_dict))]
+
+row_a = symbol_volume_sorted.keys()
+row_b = symbol_volume_sorted.values()
+row_c = [symbol_profit[i] for i in row_a]
+
+
+topvol_dict = {}
+for a in row_a:
+    temp_list = []
+    for k in scv_dict.keys():
+        if k[0] == a and len(temp_list) < 5:
+            temp_list.append((k[1],scv_dict[k]))
+    while len(temp_list) <5:
+        temp_list.append(('None','None'))
+    topvol_dict.update({a:temp_list})
+
+toppnl_dict = {}
+for a in row_a:
+    temp_list = []
+    for k in scp_dict.keys():
+        if k[0] == a and len(temp_list) < 5:
+            temp_list.append((k[1],scp_dict[k]))
+    while len(temp_list) <5:
+        temp_list.append(('None','None'))
+    toppnl_dict.update({a:temp_list})
+
+def sort_dict(data_dict):
+    for k,v in data_dict.items():
+        if v ==[]:
+            del data_dict[k]
+
+
+sort_dict(topvol_dict)
+sort_dict(toppnl_dict)
+
+
+row_d = [str(topvol_dict[a][0][0]) + '(' + str(topvol_dict[a][0][1]) + ')' for a in row_a]
+row_e = [str(topvol_dict[a][1][0]) + '(' + str(topvol_dict[a][1][1]) + ')' for a in row_a]
+row_f = [str(topvol_dict[a][2][0]) + '(' + str(topvol_dict[a][2][1]) + ')' for a in row_a]
+row_g = [str(topvol_dict[a][3][0]) + '(' + str(topvol_dict[a][3][1]) + ')' for a in row_a]
+row_h = [str(topvol_dict[a][4][0]) + '(' + str(topvol_dict[a][4][1]) + ')' for a in row_a]
+
+row_i = [str(toppnl_dict[a][0][0]) + '(' + str(toppnl_dict[a][0][1]) + ')' for a in row_a]
+row_j = [str(toppnl_dict[a][1][0]) + '(' + str(toppnl_dict[a][1][1]) + ')' for a in row_a]
+row_k = [str(toppnl_dict[a][2][0]) + '(' + str(toppnl_dict[a][2][1]) + ')' for a in row_a]
+row_l = [str(toppnl_dict[a][3][0]) + '(' + str(toppnl_dict[a][3][1]) + ')' for a in row_a]
+row_m = [str(toppnl_dict[a][4][0]) + '(' + str(toppnl_dict[a][4][1]) + ')' for a in row_a]
+
+
+
+df1 = pd.DataFrame({'Symbol': row_a, 'Volume': row_b, 'Profit': row_c, 'Most Active Trader' : row_d, 'Second Most Active Trader' : row_e,
+                    'Third Most Active Trader' : row_f, 'Forth Most Active Trader' : row_g, 'Fifth Most Active Trader' : row_h,
+                    'Most Profitable Trader' : row_i, 'Second Most Profitable Trader' : row_j, 'Third Most Profitable Trader' : row_k,
+                    'Forth Most Profitable Trader' : row_l, 'Fifth Most Profitable Trader' : row_m},
+                   columns = ['Symbol','Volume','Profit','Most Active Trader','Second Most Active Trader','Third Most Active Trader',
+                              'Forth Most Active Trader','Fifth Most Active Trader','Most Profitable Trader','Second Most Profitable Trader',
+                              'Third Most Profitable Trader','Forth Most Profitable Trader','Fifth Most Profitable Trader'])
+
+df1.to_excel("futures report.xlsx",sheet_name = '21072017', index = False)
+
+'''
+with ExcelWriter('C:/Users/chang.liu/Desktop/SQL CSV/futures report.xlsx') as writer:
+    df1.to_excel(writer, sheet_name='26052017')
+    #df2.to_excel(writer, sheet_name='Sheet2')
+
+
+#out_path="C:/Users/chang.liu/Desktop/SQL CSV/text.xlsx/"
+#df.to_excel("text.xlsx",sheet_name = '26052017', index = False)
+'''
+
+
+
+
+
+        
