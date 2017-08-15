@@ -1,0 +1,108 @@
+from __future__ import division
+import MySQLdb
+import numpy as np
+import pandas as pd
+import operator
+from time import gmtime, strftime
+from datetime import datetime
+from collections import Counter
+from collections import OrderedDict
+
+conn = MySQLdb.connect(host = 'localhost', user = 'root', passwd = "*****",
+                       db = "ctr_db", port = 3306, charset = "utf8")
+cur = conn.cursor(cursorclass = MySQLdb.cursors.DictCursor)
+
+time_period_s = raw_input('Please Enter the Starting Date:\t')
+time_period_e = raw_input('Please Enter the End Date:\t')
+
+
+cur.execute("select Deal,Login,Profit,Volume from live where Period in ('201708') and Close_Time between '%s' and '%s' union\
+            select Deal,Login,Profit,Volume from livef where Period in ('201708') and Close_Time between '%s' and '%s' union\
+            select Deal,Login,Profit,Volume from livef2 where Period in ('201708') and Close_Time between '%s' and '%s' union\
+            select Deal,Login,Profit,Volume from livef3 where Period in ('201708') and Close_Time between '%s' and '%s' union\
+            select Deal,Login,Profit,Volume from livem where Period in ('201708') and Close_Time between '%s' and '%s' union\
+            select Deal,Login,Profit,Volume from livef5 where Period in ('201708') and Close_Time between '%s' and '%s' union\
+            select Deal,Login,Profit,Volume from liveuk where Period in ('201708') and Close_Time between '%s' and '%s'" %
+            (time_period_s,time_period_e,
+            time_period_s,time_period_e,
+            time_period_s,time_period_e,
+            time_period_s,time_period_e,
+            time_period_s,time_period_e,
+            time_period_s,time_period_e,
+            time_period_s,time_period_e))
+
+lines = cur.fetchall()
+
+client_list = [line['Login'] for line in lines]
+
+conn = MySQLdb.connect(host = 'localhost', user = 'root', passwd = '*****',
+                       db = 'ar_db', port = 3306, charset = 'utf8')
+cur = conn.cursor(cursorclass = MySQLdb.cursors.DictCursor)
+IB_list = []
+for i in client_list:
+    cur.execute("select Agent from live where Login = '%s' union\
+                select Agent from livef where Login = '%s' union\
+                select Agent from livef2 where Login = '%s' union\
+                select Agent from livef3 where Login = '%s' union\
+                select Agent from livef5 where Login = '%s' union\
+                select Agent from livem where Login = '%s' union\
+                select Agent from liveuk where Login = '%s'" % (i,i,i,i,i,i,i)) 
+    a = cur.fetchone()['Agent']
+    IB_list.append(a)
+
+##########################################################################################
+profit_list = [line['Profit'] for line in lines]
+volume_list = [float(line['Volume']) for line in lines]
+
+
+def sort_parallelists(list_1,list_2):
+    dict_a = {}
+    for i in range(len(list_1)):
+        if list_1[i] not in dict_a.keys():
+            dict_a.update({list_1[i]:list_2[i]})
+            for j in range(len(list_1)):
+                if list_1[i] == list_1[j] and i != j:
+                    list_2[i] = (list_2[i]) + (list_2[j])
+                    dict_a.update({list_1[i]:list_2[i]})
+    return dict_a
+
+
+IB_profit = OrderedDict(sorted((sort_parallelists(IB_list,profit_list)).items(),key=lambda t: t[1], reverse = True))
+IB_volume = OrderedDict(sorted((sort_parallelists(IB_list,volume_list)).items(),key=lambda t: t[1], reverse = True))
+
+row_a = IB_profit.keys()
+row_b = IB_profit.values()
+row_c = [IB_volume[i] for i in row_a]
+
+conn = MySQLdb.connect(host = 'localhost', user = 'root', passwd = '******',
+                       db = 'nf_db', port = 3306, charset = 'utf8')
+cur = conn.cursor(cursorclass = MySQLdb.cursors.DictCursor)
+rebate_list = []
+for i in row_a:
+    cur.execute("select sum(b) from\
+                ((select sum(Agent_Receive) as 'b' from live where IB = '%s' and Receive_Time between '%s' and '%s') union\
+                (select sum(Agent_Receive) as 'b' from livef where IB = '%s' and Receive_Time between '%s' and '%s') union\
+                (select sum(Agent_Receive) as 'b' from livef2 where IB = '%s' and Receive_Time between '%s' and '%s') union\
+                (select sum(Agent_Receive) as 'b' from livef3 where IB = '%s' and Receive_Time between '%s' and '%s') union\
+                (select sum(Agent_Receive) as 'b' from livef5 where IB = '%s' and Receive_Time between '%s' and '%s')union\
+                (select sum(Agent_Receive) as 'b' from livem where IB = '%s' and Receive_Time between '%s' and '%s') union\
+                (select sum(Agent_Receive) as 'b' from liveuk where IB = '%s' and Receive_Time between '%s' and '%s')) as something" %
+                 (i,time_period_s,time_period_e,
+                 i,time_period_s,time_period_e,
+                 i,time_period_s,time_period_e,
+                 i,time_period_s,time_period_e,
+                 i,time_period_s,time_period_e,
+                 i,time_period_s,time_period_e,
+                 i,time_period_s,time_period_e))
+    b = cur.fetchone()['sum(b)']
+    rebate_list.append(b)
+
+cur.close()
+row_d = rebate_list
+
+
+df1 = pd.DataFrame({'IB': row_a, 'Profit': row_b, 'Volume': row_c, 'Rebate':row_d},
+                   columns = ['IB','Profit','Volume','Rebate'])
+
+df1.to_excel("IB_Rank_w2_AUG.xlsx",sheet_name = '11082017', index = False)
+
