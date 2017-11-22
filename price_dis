@@ -1,21 +1,27 @@
 import MySQLdb
+import pandas as pd
+from collections import OrderedDict
 import matplotlib.pyplot as plt
 from collections import Counter
 import numpy as np
 import time
 
-conn = MySQLdb.connect(host = "localhost", user = "root", passwd = "dealer1073.",
-                       db = "*****", port = 3306, charset = "utf8")
+conn = MySQLdb.connect(host = 'localhost', user = 'root', passwd = "*****",
+                       db = "orders_db", port = 3306, charset = "utf8")
 cur = conn.cursor(cursorclass = MySQLdb.cursors.DictCursor)
 
-symbol_name = raw_input('Please Enter the Symbol Name:\t')
+symbol_name = raw_input('Please input the symbol that you want to look up:\t')
+
+conn = MySQLdb.connect(host = "******", user = "Chang", passwd = "******",
+                       db = "aetos", port = 3306, charset = "utf8")
+cur = conn.cursor(cursorclass = MySQLdb.cursors.DictCursor)
 
 cur.execute("select * from orders where Symbol = '%s' and Type = 'buy' or Symbol = '%s' and Type = 'sell'"
             % (symbol_name,symbol_name))
 
 lines = cur.fetchall()
 
-conn = MySQLdb.connect(host = "localhost", user = "root", passwd = "dealer1073.",
+conn = MySQLdb.connect(host = "*****", user = "Chang", passwd = "*****",
                        db = "mt4", port = 3306, charset = "utf8")
 cur = conn.cursor(cursorclass = MySQLdb.cursors.DictCursor)
 cur.execute("select BID from mt4_prices where SYMBOL ='%s'" % symbol_name)
@@ -27,6 +33,63 @@ for quotes in quote:
 
 cur.close()
 conn.close()
+
+
+login_list = [line['Login'] for line in lines ]
+volume_list = [float(line['Volume']) for line in lines]
+type_list = [line['Type'] for line in lines]
+price_list = [float(line['OpenPrice']) for line in lines]
+
+lvt_list = [list(i) for i in zip(login_list,type_list,volume_list,price_list)]  
+
+def sort_3(data_list):
+  new_data = {}
+  for i in range(len(data_list)):
+      if (data_list[i][0],data_list[i][1]) not in new_data.keys():
+          new_data.update ({(data_list[i][0],data_list[i][1]):(data_list[i][2],data_list[i][3])})
+          for j in range(len(data_list)):
+              if data_list[i][0] == data_list[j][0] and data_list[i][1] == data_list[j][1] and i !=j:
+                  data_list[i][2] = data_list[i][2] + data_list[j][2]
+                  data_list[i][3] = (((data_list[i][2] - data_list[j][2]) * data_list[i][3])  + (data_list[j][2] * data_list[j][3])) / (data_list[i][2])              
+                  new_data.update ({(data_list[i][0],data_list[i][1]):(data_list[i][2],data_list[i][3])})
+  return new_data
+
+lt_v_dict = OrderedDict(sorted((sort_3(lvt_list)).items(),key=lambda t: t[1], reverse = True))
+
+#login_type_volume_dict
+
+row_a = [lt_v_dict.keys()[i][0] for i in range(len(lt_v_dict))]
+row_b = [lt_v_dict.keys()[i][1] for i in range(len(lt_v_dict))]
+row_c = [lt_v_dict.values()[i][0] for i in range(len(lt_v_dict))]
+row_d = [lt_v_dict.values()[i][1] for i in range(len(lt_v_dict))]
+
+
+conn = MySQLdb.connect(host = 'localhost', user = 'root', passwd = 'Aetos1234',
+                       db = 'ar_db', port = 3306, charset = 'utf8')
+cur = conn.cursor(cursorclass = MySQLdb.cursors.DictCursor)
+IB_list = []
+for i in row_a:
+    cur.execute("select Agent from live where Login = '%s' union\
+                select Agent from livef where Login = '%s' union\
+                select Agent from livef2 where Login = '%s' union\
+                select Agent from livef3 where Login = '%s' union\
+                select Agent from livef5 where Login = '%s' union\
+                select Agent from livem where Login = '%s' union\
+                select Agent from liveuk where Login = '%s'" % (i,i,i,i,i,i,i)) 
+    a = cur.fetchone()
+    if not a is None:
+        IB_list.append(a['Agent'])
+    else:
+        IB_list.append('None')
+
+row_e = IB_list
+
+
+
+df1 = pd.DataFrame({'Login' : row_a, 'Type' : row_b, 'Volume' : row_c, 'WA Price' : row_d, 'IB' : row_e},
+                   columns = ['Login','Type','Volume','WA Price','IB'])
+
+df1.to_excel("%s" % (symbol_name + '_volume_distribution.xlsx'),sheet_name = '%s' % (symbol_name),index = False)
 
 op_b_t,vol_b_t,op_s_t,vol_s_t = ([] for i in range(4))
 for line in lines:
@@ -45,14 +108,17 @@ vol_s = [float(i.encode('utf')) for i in vol_s_t]
 vol_b_f,vol_s_f = [float(i.encode('utf')) for i in vol_b_t],[float(i.encode('utf')) for i in vol_s_t]
 
 if 'jpy' in symbol_name or 'JPY' in symbol_name:
-    op_b = [round(i,1) for i in op_bi]
-    op_s = [round(i,1) for i in op_si]
-elif 'XA' in symbol_name or 'xa' in symbol_name:
-    op_b = [round(i,0) for i in op_bi]
-    op_s = [round(i,0) for i in op_si]
-else:    
-    op_b = [round(i,3) for i in op_bi]
-    op_s = [round(i,3) for i in op_si]
+    round_figure = 1
+elif 'XAU' in symbol_name or 'xau' in symbol_name:
+    round_figure = 0
+elif 'XAG' in symbol_name or 'xag' in symbol_name:
+    round_figure = 2
+else:
+    round_figure = 3
+
+
+op_b = [round(i,round_figure) for i in op_bi]
+op_s = [round(i,round_figure) for i in op_si]
 
 pricedis_buy = {}
 for i in range(len(op_b)):
@@ -144,23 +210,20 @@ ax.set_ylabel('Volume', fontsize = 18)
 #        style='italic', bbox={'facecolor':'red', 'alpha':0.5, 'pad':10})
 
 if 'XA' in symbol_name or 'xa' in symbol_name:
-    ax.annotate("Average Buy Price = %s\nTotal Long Position = %s\nAverage Sell Price = %s\nTotal Short Position = %s\nCurrent Price = %s"
-                % (round(np.average(op_bi,weights = vol_b_f),2),np.sum(vol_b_f),round(np.average(op_si,weights = vol_s_f),2),np.sum(vol_s_f),current_quote),
-                xy = (1,0),xycoords='axes fraction', fontsize=16,
-                horizontalalignment='right', verticalalignment='bottom')
+    round_figure_2 = 2
 elif 'jpy' in symbol_name or 'JPY' in symbol_name:
-    ax.annotate("Average Buy Price = %s\nTotal Long Position = %s\nAverage Sell Price = %s\nTotal Short Position = %s\nCurrent Price = %s"
-                % (round(np.average(op_bi,weights = vol_b_f),3),np.sum(vol_b_f),round(np.average(op_si,weights = vol_s_f),3),np.sum(vol_s_f),current_quote),
-                xy = (1,0),xycoords='axes fraction', fontsize=16,
-                horizontalalignment='right', verticalalignment='bottom')
+    round_figure_2 = 3
 else:
-    ax.annotate("Average Buy Price = %s\nTotal Long Position = %s\nAverage Sell Price = %s\nTotal Short Position = %s\nCurrent Price = %s"
-                % (round(np.average(op_bi,weights = vol_b_f),5),np.sum(vol_b_f),round(np.average(op_si,weights = vol_s_f),5),np.sum(vol_s_f),current_quote),
-                xy = (1,0),xycoords='axes fraction', fontsize=16,
-                horizontalalignment='right', verticalalignment='bottom')
+    round_figure_2 = 4
+
+ax.annotate("Average Buy Price = %s\nTotal Long Position = %s\nAverage Sell Price = %s\nTotal Short Position = %s\nCurrent Price = %s"
+            % (round(np.average(op_bi,weights = vol_b_f),round_figure_2),np.sum(vol_b_f),round(np.average(op_si,weights = vol_s_f),round_figure_2),np.sum(vol_s_f),current_quote),
+            xy = (1,0),xycoords='axes fraction', fontsize=16,
+            horizontalalignment='right', verticalalignment='bottom')
+
 
 legend = plt.legend(loc = 1,shadow = True, fontsize = 16)
 
 plt.tight_layout()
+plt.grid()
 plt.show()
-#plt.savefig('C:\Users\chang.liu\Desktop\Price_dis\%s'% symbol_name )
