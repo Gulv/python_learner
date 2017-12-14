@@ -1,0 +1,176 @@
+import MySQLdb
+import os
+import csv
+import time
+import sys
+import datetime
+from warnings import filterwarnings
+import numpy as np
+import matplotlib.pyplot as plt
+
+login=str(raw_input('Login:\t'))
+
+try:
+    db=MySQLdb.connect('localhost','root','Aetos0515','tradingdatabase')
+    c=db.cursor(cursorclass = MySQLdb.cursors.DictCursor)
+except MySQLdb.Error,e:
+    print 'Database Connection Failure'
+    sys.exit(9)
+
+c.execute("""select deal,login,symbol,type,volume,open_time,close_time from tradingdatabase.ctr where login='%s'""" %login) 
+r1 = c.fetchall()
+
+symbol,tp,ot,ct,tkey,vol,totalvol,subvol= ([] for i in range(8))
+
+for r in r1:
+    symbol.append(r['symbol'])
+    tp.append(r['type'])
+    ot.append(r['open_time'])
+    ct.append(r['close_time'])
+    vol.append(r['volume'])
+    if r['open_time'] not in tkey:
+        tkey.append(datetime.datetime.strptime(str(r['open_time']), '%Y-%m-%d %H:%M:%S'))
+        totalvol.append(0)
+    if r['close_time'] not in tkey:
+        tkey.append(datetime.datetime.strptime(str(r['close_time']), '%Y-%m-%d %H:%M:%S'))
+        totalvol.append(0)
+tkey.sort()
+
+sylkey,tpkey,ods,yzhou=[],[],[],[]
+
+for k in range(len(tkey)):
+    sylkey.append('sylkey{}'.format(k))
+    tpkey.append('tpkey{}'.format(k))
+    subvol.append('subvol{}'.format(k))
+    ods.append('ods{}'.format(k))
+
+for (i, a) in enumerate(tkey):
+    sylkey[i],tpkey[i],subvol[i],ods[i]=[],[],[],[]
+
+kl=[]
+
+for r in r1:
+    for (i, a) in enumerate(tkey):
+        if a>=datetime.datetime.strptime(str(r['open_time']), '%Y-%m-%d %H:%M:%S') and a<datetime.datetime.strptime(str(r['close_time']), '%Y-%m-%d %H:%M:%S'):
+            totalvol[i]+=float(r['volume'])
+            ods[i].append(r)
+            if r['symbol'] not in sylkey[i]:
+                sylkey[i].append(r['symbol'])
+                tpkey[i].append(r['type'])
+                subvol[i].append(float(r['volume']))
+            elif r['symbol'] in sylkey[i]:
+                if tpkey[i][sylkey[i].index(r['symbol'])] <> r['type']:
+                    subvol[i][sylkey[i].index(r['symbol'])]=abs(subvol[i][sylkey[i].index(r['symbol'])]-float(r['volume']))
+                else:
+                    subvol[i][sylkey[i].index(r['symbol'])]=abs(subvol[i][sylkey[i].index(r['symbol'])]+float(r['volume']))
+       
+for (l,dd) in enumerate(subvol):
+    subvol[l]=sum(dd)
+
+
+for (i, a) in enumerate(tkey):
+    yzhou.append(i)
+
+
+totalvol=np.array(totalvol)
+yzhou=np.array(yzhou)
+
+fig = plt.figure(figsize=(11,8))
+ax1 = fig.add_subplot(111)
+
+plt.xticks(yzhou,tkey)
+plt.plot(yzhou,totalvol )
+plt.plot(yzhou,subvol)
+plt.legend(['Total volume without hedge', 'Total volune with hedge'], loc='upper left')
+
+fig.autofmt_xdate()
+plt.tight_layout()
+plt.show()
+
+_____________________________________
+
+
+from __future__ import division
+import MySQLdb
+import numpy as np
+import re
+from time import gmtime, strftime
+from datetime import datetime,timedelta
+import matplotlib.pyplot as plt
+
+#select client's closed trades and open positions
+
+client,server,reg_date = str(raw_input('Please enter the client,server and reg date that you want to look up:\t')).split(',')
+
+conn = MySQLdb.connect(host = "localhost", user = "root", passwd = "Aetos1234",
+                       db = "ctr_db", port = 3306, charset = "utf8")
+
+cur = conn.cursor(cursorclass = MySQLdb.cursors.SSCursor)
+
+cur.execute("select timestampdiff(minute,timestamp('%s'),Open_Time) as OD,\
+                    timestampdiff(minute,timestamp('%s'),Close_Time) as CD,\
+                    Volume from %s where Login = '%s'" % (reg_date + ' 00:00:00',reg_date + ' 00:00:00',server,client))
+
+duration,volume = [],[]
+for i in cur.fetchall():
+    duration.append((int(i[0]),int(i[1])))
+    volume.append(float(i[2]))
+
+'''
+conn = MySQLdb.connect(host = "localhost", user = "root", passwd = "Aetos1234",
+                       db = "aetos", port = 3306, charset = "utf8")
+
+cur = conn.cursor(cursorclass = MySQLdb.cursors.SSCursor)
+cur.execute("select timestampdiff(second,timestamp('%s'),Time) as OD,\
+                    Volume from orders where Login = '%s'" % (reg_date + ' 00:00:00',client))
+
+for i in cur.fetchall():
+    duration.append((int(i[0]),9999999))
+    volume.append(float(i[1]))
+'''
+cur.close()
+conn.close()
+
+#duration_position_dict = dict(zip(duration,volume))
+
+ruler = [min(duration[0]),max([j[1] for j in duration])+1]
+
+volume_new = [0] * len(range(ruler[0],ruler[1]+1))
+
+for i in range(len(duration)):
+    for j in range(duration[i][0],duration[i][1]+1):
+        volume_new[j - ruler[0]] = volume_new[j - ruler[0]] + volume[i]
+
+print max(volume_new)
+
+origin_time = datetime.strptime(reg_date + ' 00:00:00', '%Y-%m-%d %H:%M:%S')
+time_reference = [origin_time + timedelta(seconds = i) for i in range(ruler[0],ruler[1]+1)]
+
+fig = plt.figure(figsize=(11,8))
+ax1 = fig.add_subplot(111)
+
+y = np.array(time_reference)
+x = np.array(volume_new)
+plt.plot(y,x)
+
+fig.autofmt_xdate()
+
+plt.tight_layout()
+plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
