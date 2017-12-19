@@ -1,95 +1,3 @@
-import MySQLdb
-import os
-import csv
-import time
-import sys
-import datetime
-from warnings import filterwarnings
-import numpy as np
-import matplotlib.pyplot as plt
-
-login=str(raw_input('Login:\t'))
-
-try:
-    db=MySQLdb.connect('localhost','root','Aetos0515','tradingdatabase')
-    c=db.cursor(cursorclass = MySQLdb.cursors.DictCursor)
-except MySQLdb.Error,e:
-    print 'Database Connection Failure'
-    sys.exit(9)
-
-c.execute("""select deal,login,symbol,type,volume,open_time,close_time from tradingdatabase.ctr where login='%s'""" %login) 
-r1 = c.fetchall()
-
-symbol,tp,ot,ct,tkey,vol,totalvol,subvol= ([] for i in range(8))
-
-for r in r1:
-    symbol.append(r['symbol'])
-    tp.append(r['type'])
-    ot.append(r['open_time'])
-    ct.append(r['close_time'])
-    vol.append(r['volume'])
-    if r['open_time'] not in tkey:
-        tkey.append(datetime.datetime.strptime(str(r['open_time']), '%Y-%m-%d %H:%M:%S'))
-        totalvol.append(0)
-    if r['close_time'] not in tkey:
-        tkey.append(datetime.datetime.strptime(str(r['close_time']), '%Y-%m-%d %H:%M:%S'))
-        totalvol.append(0)
-tkey.sort()
-
-sylkey,tpkey,ods,yzhou=[],[],[],[]
-
-for k in range(len(tkey)):
-    sylkey.append('sylkey{}'.format(k))
-    tpkey.append('tpkey{}'.format(k))
-    subvol.append('subvol{}'.format(k))
-    ods.append('ods{}'.format(k))
-
-for (i, a) in enumerate(tkey):
-    sylkey[i],tpkey[i],subvol[i],ods[i]=[],[],[],[]
-
-kl=[]
-
-for r in r1:
-    for (i, a) in enumerate(tkey):
-        if a>=datetime.datetime.strptime(str(r['open_time']), '%Y-%m-%d %H:%M:%S') and a<datetime.datetime.strptime(str(r['close_time']), '%Y-%m-%d %H:%M:%S'):
-            totalvol[i]+=float(r['volume'])
-            ods[i].append(r)
-            if r['symbol'] not in sylkey[i]:
-                sylkey[i].append(r['symbol'])
-                tpkey[i].append(r['type'])
-                subvol[i].append(float(r['volume']))
-            elif r['symbol'] in sylkey[i]:
-                if tpkey[i][sylkey[i].index(r['symbol'])] <> r['type']:
-                    subvol[i][sylkey[i].index(r['symbol'])]=abs(subvol[i][sylkey[i].index(r['symbol'])]-float(r['volume']))
-                else:
-                    subvol[i][sylkey[i].index(r['symbol'])]=abs(subvol[i][sylkey[i].index(r['symbol'])]+float(r['volume']))
-       
-for (l,dd) in enumerate(subvol):
-    subvol[l]=sum(dd)
-
-
-for (i, a) in enumerate(tkey):
-    yzhou.append(i)
-
-
-totalvol=np.array(totalvol)
-yzhou=np.array(yzhou)
-
-fig = plt.figure(figsize=(11,8))
-ax1 = fig.add_subplot(111)
-
-plt.xticks(yzhou,tkey)
-plt.plot(yzhou,totalvol )
-plt.plot(yzhou,subvol)
-plt.legend(['Total volume without hedge', 'Total volune with hedge'], loc='upper left')
-
-fig.autofmt_xdate()
-plt.tight_layout()
-plt.show()
-
-_____________________________________
-
-
 from __future__ import division
 import MySQLdb
 import numpy as np
@@ -100,21 +8,24 @@ import matplotlib.pyplot as plt
 
 #select client's closed trades and open positions
 
-client,server,reg_date = str(raw_input('Please enter the client,server and reg date that you want to look up:\t')).split(',')
+client,server = str(raw_input('Please enter the client and server that you want to look up:\t')).split(',')
 
 conn = MySQLdb.connect(host = "localhost", user = "root", passwd = "Aetos1234",
                        db = "ctr_db", port = 3306, charset = "utf8")
 
 cur = conn.cursor(cursorclass = MySQLdb.cursors.SSCursor)
 
-cur.execute("select timestampdiff(minute,timestamp('%s'),Open_Time) as OD,\
-                    timestampdiff(minute,timestamp('%s'),Close_Time) as CD,\
-                    Volume from %s where Login = '%s'" % (reg_date + ' 00:00:00',reg_date + ' 00:00:00',server,client))
+cur.execute("select Deal,Symbol,Type,Volume,Open_Time,Close_Time\
+            from %s where Login = '%s'" % (server,client))
 
-duration,volume = [],[]
+symbol,Type,volume,open_time,close_time,duration = [[]for i in range(6)]
 for i in cur.fetchall():
-    duration.append((int(i[0]),int(i[1])))
-    volume.append(float(i[2]))
+    symbol.append(i[1])
+    Type.append(i[2])
+    volume.append(float(i[3]))
+    open_time.append(i[4])
+    close_time.append(i[5])
+    duration.append((i[4],i[5]))
 
 '''
 conn = MySQLdb.connect(host = "localhost", user = "root", passwd = "Aetos1234",
@@ -133,80 +44,53 @@ conn.close()
 
 #duration_position_dict = dict(zip(duration,volume))
 
-ruler = [min(duration[0]),max([j[1] for j in duration])+1]
+optime_sv = {}
 
-volume_new = [0] * len(range(ruler[0],ruler[1]+1))
 
-for i in range(len(duration)):
-    for j in range(duration[i][0],duration[i][1]+1):
-        volume_new[j - ruler[0]] = volume_new[j - ruler[0]] + volume[i]
 
-print max(volume_new)
 
+
+
+volume_new = [0] * len(duration)
+
+
+
+for j in range(len(open_time)):
+    for i in range(len(open_time)):
+        if open_time[j]>= duration[i][0] and open_time[j] <= duration[i][1]:
+            volume_symbol = []
+            if (open_time[j],symbol[i]) not in optime_sv.keys():
+                optime_sv.update({(open_time[j],symbol[i]):volume_symbol.append(volume[i])})
+            else:
+                optime_sv.update({})
+            
+            if (symbol[i],Type[i]) not in symbol_volume.keys():
+                volume_new = 
+                symbol_volume.update{(symbol[i],Type[i]): volume[i]}
+            else:
+                symbol_volume.update{(symbol[i],Type[i]): volume[i]}
+
+
+
+
+            
+            if Symbol[i] != Symbol[j] or Type[i] == Type[j]:
+                volume_new[j] += Volume[i]
+
+print max(Volume_new)
+
+'''
 origin_time = datetime.strptime(reg_date + ' 00:00:00', '%Y-%m-%d %H:%M:%S')
 time_reference = [origin_time + timedelta(seconds = i) for i in range(ruler[0],ruler[1]+1)]
-
+'''
 fig = plt.figure(figsize=(11,8))
 ax1 = fig.add_subplot(111)
 
-y = np.array(time_reference)
-x = np.array(volume_new)
+y = np.array(Open_time)
+x = np.array(Volume_new)
 plt.plot(y,x)
 
 fig.autofmt_xdate()
 
 plt.tight_layout()
 plt.show()
-
-
-import MySQLdb
-from sys import exit
-conn = MySQLdb.connect(host = "localhost", user = "root", passwd = "dealer1073.", db = "aetos", port = 3306, charset = "utf8")
-cur = conn.cursor(cursorclass = MySQLdb.cursors.DictCursor)
-
-def empty():
-    if raw_input("Do you want to empty any table before uploading?\t") == "yes":
-        tablename = str(raw_input('Please input the name of table you want to empty:\t'))
-        cur.execute("delete from %s" % tablename)
-        conn.commit()
-        upload()
-    else:
-        upload()
-    
-def upload():
-    filename = str(raw_input('Please input the name of file you want to upload:\t'))
-    tablename = str(raw_input('Please input the name of table you want to upload to:\t'))
-    cur.execute("LOAD DATA LOCAL INFILE 'c:/Users/chang.liu/raw_csv/%s' INTO TABLE %s FIELDS TERMINATED BY ','ENCLOSED BY '\"\' LINES TERMINATED BY '\r\n'" % (filename,tablename))
-    conn.commit()
-
-def ans():
-    
-    while True:
-        ans = str(raw_input("Have you finished uploading?\t"))
-        if ans != "yes":
-            empty()
-        else:
-            print "OK, Bye!"
-            exit(0)
-            cur.close()
-            conn.close()
-
-
-empty()
-
-ans()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
