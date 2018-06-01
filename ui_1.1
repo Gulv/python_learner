@@ -1,0 +1,805 @@
+from __future__ import division
+import MySQLdb
+import matplotlib
+matplotlib.use('Qt4Agg')
+from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as NavigationToolbar
+from PyQt4.QtCore import *
+from PyQt4.QtGui import *
+from matplotlib.figure import Figure
+import matplotlib.pyplot as plt
+import random
+import numpy as np
+import re
+from time import gmtime, strftime
+from datetime import datetime
+from collections import Counter
+from collections import OrderedDict
+import sys
+
+client = raw_input('Please Enter the Client That You Would Like to Check:\t')
+
+conn = MySQLdb.connect(host = 'localhost', user = 'root', passwd = '****',
+                       db = 'tradingdatabase', port = 3306, charset = 'utf8')
+cur = conn.cursor(cursorclass = MySQLdb.cursors.DictCursor)
+cur.execute("select * from ctr where Login = %r ORDER BY Open_Time" % (client))
+lines = cur.fetchall()
+
+conn = MySQLdb.connect(host = "192.168.100.75", user = '####', passwd = '1234',
+                       db = 'db2018', port = 3306, charset = 'utf8')
+cur = conn.cursor(cursorclass = MySQLdb.cursors.DictCursor)
+cur.execute("select distinct(ip) from clients where Login = '%s'" % (client))
+ips = cur.fetchall()
+
+cur.execute("select distinct(cid) from clients where Login = '%s'" % (client))
+cids = cur.fetchall()
+
+ip,cid = [],[]
+for i in ips:
+    ip.append(str(i['ip']))
+
+for i in cids:
+    cid.append(str(i['cid']))
+
+group_clients_ip,group_clients_cid = [],[]
+
+if len(ip) == 1:
+    cur.execute("select login from clients where ip = %r and login <> '%s'" % (ip[0],client))
+    client_temp_ip = cur.fetchall()
+    if not len(client_temp_ip) == 0:
+        for i in client_temp_ip:
+            group_clients_ip.append(i['login'])
+
+elif len(ip) >= 2:
+    ip_new = tuple(ip)
+    cur.execute("select login from clients where ip in %s and login <> '%s'" % (ip_new,client))
+    client_temp_ip = cur.fetchall()
+    if not len(client_temp_ip) == 0:
+        for i in client_temp_ip:
+            group_clients_ip.append(i['login'])
+       
+
+if len(cid) == 1:
+    cur.execute("select login from clients where cid = %r and login <> '%s'" % (cid[0],client))
+    client_temp_cid = cur.fetchall()
+    if not len(client_temp_cid) == 0:
+        for i in client_temp_cid:
+            group_clients_cid.append(i['login'])
+            
+elif len(cid) >= 2:
+    ip_new = tuple(cid)
+    cur.execute("select login from clients where cid in %s and login <> '%s'" % (cid_new,client))
+    client_temp_cid = cur.fetchall()
+    if not len(client_temp_cid) == 0:
+        for i in client_temp_cid:
+            group_clients_cid.append(i['login'])
+
+cur.close()
+conn.close()
+
+symbol,Type,volume,volume_t,open_time,close_time,duration = [[]for i in range(7)]
+for i in lines:
+    symbol.append(i['Symbol'])
+    Type.append(i['Type'])
+    volume_t.append(float(i['Volume']))
+    open_time.append(i['Open_Time'])
+    close_time.append(i['Close_Time'])
+    duration.append((i['Open_Time'],i['Close_Time']))
+    volume.append(0)
+    
+total_profit = sum([line['Profit'] for line in lines])
+total_volume = sum([float(line['Volume']) for line in lines])
+agent_point = sum([line['Agent_Commission'] for line in lines]) + sum([line['Commission'] for line in lines])
+total_commission = sum(line['Commission'] for line in lines)
+
+for i in range(len(duration)):
+    if Type[i] == 'buy':
+        volume[i] = volume_t[i]
+    else:
+        volume[i] = -volume_t[i]
+
+#allocation of holding period
+holding_period = [round((line['Close_Time']-line['Open_Time']).total_seconds()/60,2)
+             for line in lines]
+
+items = (('< 1 min' , len([i for i in holding_period if i <= 1])),
+('1 min to 1 hour' , len([i for i in holding_period if 1 < i <= 30])),
+('1 hour to 1 day' , len([i for i in holding_period if 60 < i <= 1440])),
+('> 1 day', len([i for i in holding_period if 1440 < i])))
+
+'''
+items = (('< 1 min' ,"{0:.2%}".format(len([i for i in holding_period if i <= 1])/len(holding_period))),
+('1 min to 1 hour' , "{0:.2%}".format(len([i for i in holding_period if 1 < i <= 30])/len(holding_period))),
+('1 hour to 1 day' , "{0:.2%}".format(len([i for i in holding_period if 60 < i <= 1440])/len(holding_period))),
+('> 1 day', "{0:.2%}".format(len([i for i in holding_period if 1440 < i])/len(holding_period))))
+'''
+profit_list = [float(line['Profit']) for line in lines]
+
+
+
+hp_points_dict = dict(zip(holding_period,[(float(line['Points']) /10) for line in lines]))
+hp_profit_dict = dict(zip(holding_period,profit_list))
+
+hp_frequency_dict = OrderedDict(items)
+
+symbol_index = ['audusd','eurusd','gbpusd','usdjpy','usdcad','usdchf','nzdusd',
+                'audcad','audchf','audjpy','audnzd','cadchf','cadjpy','chfjpy',
+                'euraud','eurcad','eurchf','eurgbp','eurjpy','eurnzd','gbpaud',
+                'gbpchf','gbpcad','gbpjpy','gbpnzd','nzdjpy','xauusd','xagusd',
+                'usoil','ukoil','ngas','us30','nas100','spx500','copper','dxy',
+                'uk100','jpn225','hkh40','hkg50','palladium','platinum','aus200',
+                'agricultural','xaueur','xageur','others']
+
+volume_index = [[] for i in range(len(symbol_index))]
+points_index = [[] for i in range(len(symbol_index))]
+
+for line in lines:
+    symbol_filltration = line['Symbol'].partition(".")[0]
+    if symbol_filltration in symbol_index:
+        volume_index[symbol_index.index(symbol_filltration)].append(line['Volume'])
+        points_index[symbol_index.index(symbol_filltration)].append(float(line['Points'])/10)
+        
+    elif symbol_filltration in ['cocoa','sugar','coffee','cotton','livecattle',\
+         'corn' ,'soybeans','wheat','soybeanoil']:
+        volume_index[symbol_index.index('agricultural')].append(line['Volume'])
+        points_index[symbol_index.index('agricultural')].append(float(line['Points'])/10)                
+    else:
+        volume_index[symbol_index.index('others')].append(line['Volume'])
+        points_index[symbol_index.index('others')].append(float(line['Points'])/10)
+
+for i in range(len(volume_index)):
+    volume_index[i] = [sum(float(k.encode('utf')) for k in volume_index[i])]
+    #points_index[i] = [sum(float(k.encode('utf')) for k in point_index[i])]
+
+symbol_volume = dict(zip(symbol_index,volume_index))
+symbol_points = dict(zip(symbol_index,points_index))
+
+def reform_volume(data_dict):
+    for k,v in data_dict.items():
+        data_dict.update({k:sum(v)})
+        
+def sort_dict(data_dict):
+    for k,v in data_dict.items():
+        if v ==0:
+            del data_dict[k]
+        elif 100*v < sum(data_dict.values()):
+            del data_dict[k]
+            
+def drop_outliers(data_dict,reflection_dict):
+    for k,v in data_dict.items():
+            if k not in reflection_dict.keys():
+                del data_dict[k]
+                
+def max_value_tuple(data_dict):
+    v = list(data_dict.values())
+    k = list(data_dict.keys())
+    mk = k[v.index(max(v))]
+    return (mk,max(v))
+
+def most_profitable_order_des(raw_data,profit_reference):
+    des = []
+    for line in raw_data:
+        if float(line['Profit']) == max(profit_reference):
+            des = [line['Type'],line['Volume'],line['Symbol'].upper(),line['Open_Time']]
+    return des
+
+def return_volume(data_list):
+    new_data = {}
+    for i in range(len(data_list)):
+        if data_list[i][0] not in new_data.keys():
+            new_data.update({data_list[i][0]:data_list[i][1]})
+            for j in range(len(data_list)):
+                if data_list[i][0] == data_list[j][0] and i != j:
+                    data_list[i][1] = data_list[i][1] + data_list[j][1]
+                    new_data.update({data_list[i][0]:data_list[i][1]})
+    num = sum(abs(i) for i in new_data.values())
+    return num          
+        
+reform_volume(symbol_volume)
+sort_dict(symbol_volume)
+#sort_dict(hp_frequency_dict)
+drop_outliers(symbol_points,symbol_volume)
+
+number_of_profit_orders,number_of_loss_orders,profit_orders_average,loss_orders_average= ([] for i in range(4))
+
+
+for k,v in symbol_points.items():
+    number_of_profit_orders.append(len([ i for i in v if i >= 0]))
+    number_of_loss_orders.append(len([i for i in v if i< 0]))
+    if all(i >= 0 for i in v):
+        profit_orders_average.append(np.average([i for i in v]))
+        loss_orders_average.append(0)
+    elif all(i <= 0 for i in v):
+        profit_orders_average.append(0)
+        loss_orders_average.append(np.average([i for i in v]))
+    else:
+        profit_orders_average.append(np.average([i for i in v if i >=0]))
+        loss_orders_average.append(np.average([i for i in v if i < 0]))
+
+sizes_t = symbol_volume.values()
+labels_t = symbol_volume.keys()
+
+sizes_less = sorted([10*i for i in sizes_t],reverse = True)#in case the pie is not circle
+sizes =sorted(sizes_t,reverse = True)
+
+index_new_dup = []
+for p1,i1 in enumerate(sizes):
+   for p2,i2 in enumerate(sizes_t):
+       if i1 == i2:
+           index_new_dup.append(p2)
+
+index_new = list(OrderedDict.fromkeys(index_new_dup))
+
+labels = [labels_t[i] for i in index_new]
+
+colors_material = ['yellowgreen','gold','lightskyblue',
+                   'lightcoral','red','teal','mediumpurple','skyblue',
+                   'wheat','pink','crimson','plum','salmon',
+                   'slateblue','cyan','snow','lightcoral','lime',
+                   'gray','thistle','lavender','orange',
+                   'powderblue','chartreuse','m','yellow']
+colors_material_ordered = ['r','yellow','cyan','lime']
+
+#--------------------------------------------------------------------------------------------------#
+
+class MyMainWindow(QMainWindow):
+
+    def __init__(self, parent=None):
+        super(MyMainWindow, self).__init__(parent)
+        self.status = self.statusBar()
+        self.status.showMessage("All Rights Resverd by Dota King",5000)  
+        self.setWindowTitle("Trade Analysis of Client %s" % client)
+   
+        self.form_widget_1 = ApplicationWindow_1(self)
+        #self.form_widget_2 = ApplicationWindow_2(self)
+        #self.form_widget_3 = ApplicationWindow_3(self)
+        #self.form_widget_4 = ApplicationWindow_4(self)
+        #self.form_widget_5 = ApplicationWindow_5(self)
+        self.setCentralWidget(self.form_widget_1)
+        self.resize(400,400)
+
+#--------------------------------------------------------------------------------------------------#        
+class graph_dialog_window(QDialog):
+    def __init__(self,str_title,determiner):
+        super(graph_dialog_window, self).__init__(parent = None)
+        
+        self.setWindowTitle(str_title)
+        self.mainlayout = QGridLayout(self)
+        self.figure = Figure()
+        self.canvas = FigureCanvas(self.figure)
+        self.mainlayout.addWidget(self.canvas,0,0,1,10)
+
+        self.buttonSure = QPushButton()
+        self.buttonSure.setText("Confirm")
+        self.buttonCancel = QPushButton()
+        self.buttonCancel.setText("Cancel")
+        self.mainlayout.addWidget(self.buttonSure,1,2,1,2)
+        self.mainlayout.addWidget(self.buttonCancel,1,6,1,2)
+        self.setLayout(self.mainlayout)
+        self.buttonSure.clicked.connect(self.sureOpra)
+        self.buttonCancel.clicked.connect(self.cancelOpra)
+        
+        if determiner == 'closed_trades':
+            self.order_profit()
+            self.resize(1200,300)
+        elif determiner == 'product_preference':
+            self.symbol_distribution()
+            self.resize(500,500)
+        elif determiner == 'holding_period_distribution':
+            self.holding_period_distribution()
+            self.resize(500,500)
+        elif determiner == 'pnl':
+            self.pnl_and_commission()
+            self.resize(500,500)
+        elif determiner == 'position':
+            self.max_position_generator()
+            self.resize(500,500)
+        elif determiner == 'duration':
+            self.profit_duration()
+            self.resize(1200,400)
+        
+        self.show()
+
+    def order_profit(self):
+        
+        ax2 = self.figure.add_subplot(111)
+        x = np.arange(len(symbol_points))
+        y1 =np.array(number_of_profit_orders)
+        y2 = np.array(number_of_loss_orders)
+
+        ax2.set_xticks(x)
+        ax2.set_xticklabels(symbol_points.keys())
+        #ax2.set_xlim(0,len(symbol_points))
+        plt.xlim(0,len(symbol_points))
+        ax2.set_ylim(-max([max(y2)*1.2,50,max(y1)*1.2]),max([max(y1)*1.2,max(y2)*1.2,50]))
+        ax2.grid()
+
+        rects1 = ax2.bar(x-0.25, +y1,width=0.5,color = 'cyan',label = 'Number of profit orders',align='center')
+        rects2 = ax2.bar(x-0.25, -y2,width=0.5,color = 'gold',label = 'Number of loss orders',align='center')
+        ax2.set_ylabel('Number of Orders', fontsize = 10)
+     
+        ax3 = ax2.twinx()
+        y3 = np.array(profit_orders_average)
+        y4 = np.array(loss_orders_average)
+        rects3 = ax3.bar(x+0.25, +y3,width=0.5,color = 'lime',label = 'Profit order average pips',align='center')
+        rects4 = ax3.bar(x+0.25, +y4,width=0.5,color = 'red',label = 'Loss order average pips',align='center')
+        ax3.set_title('Trade Analysis of %s' % client,fontsize = 12)
+        ax3.set_ylabel('Average Points Per Order', fontsize = 10)
+        ax3.set_ylim(min([min(y4)*1.5,-max(y3)*1.5,-30]),max([-min(y4)*1.5,max(y3)*1.5,30]))
+        #add 4 labels in one legend
+        bar1,label1 = ax2.get_legend_handles_labels()
+        bar2,label2 = ax3.get_legend_handles_labels()
+        ax2.legend(bar1+bar2,label1+label2,loc = 'best',fancybox=True,
+           shadow=True,ncol = 2,prop={'size':8})
+        #adjust ax2 ylimit so that v2 in ax2 is aligned to v1 in ax1
+        def align_yaxis(self, ax1, v1, ax2, v2):
+            _, y1 = ax1.transData.transform((0, v1))
+            _, y2 = ax2.transData.transform((0, v2))
+            inv = ax2.transData.inverted()
+            _, dy = inv.transform((0, 0)) - inv.transform((0, y1-y2))
+            miny, maxy = ax2.get_ylim()
+            ax2.set_ylim(miny+dy, maxy+dy)
+            
+        align_yaxis(self,ax2, 0, ax3, 0)
+        plt.tight_layout()
+
+    def symbol_distribution(self):
+        
+        ax1 = self.figure.add_subplot(111)
+        colors = random.sample(colors_material,len(symbol_volume))
+        explode = [0.17 for i in range(len(sizes))]
+        if sum(sizes) < 1:
+            patches,texts = ax1.pie(sizes_less,colors = colors, startangle = 90,radius = 1.2)
+        else:
+            patches,texts = ax1.pie(sizes,colors = colors, startangle = 90,radius = 1.2)
+        porcent = [ 100*i/sum(sizes) for i in sizes]
+        global labels
+        legend_labels = ['{0} - {1:1.2f} %'.format(i,j) for i,j in zip(labels, porcent)]
+        sort_legend = True
+        if sort_legend:
+            patches, labels, dummy =  zip(*sorted(zip(patches, legend_labels, sizes),
+                                          key=lambda x: x[2],
+                                          reverse=True))
+        #box = ax1.get_position()
+        #ax1.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+        ax1.legend(patches, legend_labels, loc='upper left', bbox_to_anchor=(0, 1),fontsize=8)
+        ax1.set_title('Product Preference',fontsize = 10)
+        #plt.subplots_adjust(left = 0.7)
+        #plt.tight_layout()
+
+    def holding_period_distribution(self):
+        ax4 = self.figure.add_subplot(111)
+        hp_labels = hp_frequency_dict.keys()#hp represents holding period
+        hp_sizes = hp_frequency_dict.values()
+        #hp_colors = random.sample(colors_material,8)
+
+        hp_patches,hp_texts = ax4.pie(hp_sizes,colors = colors_material_ordered, startangle = 90,radius = 1.2)
+        hp_porcent = [ 100*i/sum(hp_sizes) for i in hp_sizes]
+        hp_legend_labels = ['{0} - {1:1.2f} %'.format(i,j) for i,j in zip(hp_labels, hp_porcent)]
+        sort_legend = False
+        if sort_legend:
+            hp_patches, hp_labels, hp_dummy =  zip(*sorted(zip(hp_patches, hp_legend_labels, hp_sizes),
+                                          key=lambda x: x[2],
+                                          reverse=True))
+        ax4.legend(hp_patches, hp_legend_labels, loc='best',fontsize=8)
+        ax4.set_title('Holding Period',fontsize = 10)
+        #plt.tight_layout()
+
+    def pnl_and_commission(self):
+        ax5 = self.figure.add_subplot(111)
+
+        x5 = np.arange(3)
+        y5 = [total_profit,total_commission,agent_point]
+
+        bar_list = ax5.bar(x5,y5,align='center')
+
+        bar_list[0].set_color('cyan')
+        bar_list[1].set_color('orange')
+        bar_list[2].set_color('red')
+
+        ax5.set_title('Total PnL & Commission/$', fontsize = 10)
+        #ax5.set_ylabel('K(USD)', fontsize = 10)
+        #ax5.yaxis.set_label_position('right')
+        ax5.set_xticks(x5)
+        ax5.set_xticklabels(['Pnl','Commission','Agent'])
+        ax5.axhline(0, color='black')
+        #plt.tight_layout()
+
+    def max_position_generator(self):
+        volume_new = [0] * len(duration)
+        volume_new_unhedge = [0] * len(duration)
+
+        for j in range(len(open_time)):
+            symbol_temp,volume_temp,unhedge_volume_temp = [],[],[]
+            for i in range(len(open_time)):
+                if open_time[j]>= duration[i][0] and open_time[j]<= duration[i][1]:
+                    symbol_temp.append(symbol[i])
+                    volume_temp.append(volume[i])
+                    unhedge_volume_temp.append(volume_t[i])
+                sv_list = [list(i) for i in zip(symbol_temp,volume_temp)]
+                suv_list = [list(i) for i in zip(symbol_temp,unhedge_volume_temp)]
+        
+            volume_new[j] += return_volume(sv_list)
+            volume_new_unhedge[j] += return_volume(suv_list)
+        
+        ax7 = self.figure.add_subplot(111)
+
+        x7 = np.arange(2)
+        y7 = [max(volume_new), max(volume_new_unhedge)]
+        bar_list = ax7.bar(x7,y7,align='center')
+        bar_list[0].set_color('red')
+        bar_list[1].set_color('cyan')
+        ax7.set_title('Max Holding Position/lots', fontsize = 10)
+        #ax7.set_ylabel('Lots', fontsize = 10)
+        #ax7.yaxis.set_label_position('right')
+        ax7.set_xticks(x7)
+        ax7.set_xticklabels(['Max Position','With Hedge'])
+        ax7.axhline(0, color='black')
+        #plt.tight_layout()
+
+    def profit_duration(self):
+        ax6 = self.figure.add_subplot(111)
+
+        x6 = hp_profit_dict.keys()
+        y6 = hp_profit_dict.values()
+        ax6.scatter(x6, y6, c = 'black')
+        ax6.set_title('Duration-Profit Scatter', fontsize = 10)
+        ax6.set_ylabel('PnL ($)', fontsize = 10)
+        ax6.set_xlabel('Holding Period (Minutes)', fontsize = 10)
+        ax6.set_xlim(xmin=0)
+
+        lims = int([i for i in ax6.get_xlim()][1])
+        xpositions = range(1440,lims,1440)
+
+        for k,i in enumerate(xpositions):
+            ax6.axvline(x = i, color = 'k', linestyle = "--", label = "Day Separators" if k == 0 else "")
+
+        while max(x6) >= 1440:
+            ax6.legend(loc = 1,shadow = True, fontsize = 10)
+            break
+
+        des = most_profitable_order_des(lines,profit_list)
+        description = "%s %s lot of %s on %s." % tuple(des)
+
+        ax6.annotate(description, max_value_tuple(hp_profit_dict), xytext = (0.35,0.352),
+                textcoords='figure fraction', bbox=dict(boxstyle='round,pad=0.5', fc='yellow', alpha=0.5),
+             #firgure fraction use the whole firgure as reference with left bot being 00, right up being 11
+             arrowprops=dict(arrowstyle = '->', connectionstyle='arc3,rad=0'))
+        #plt.tight_layout()
+
+    def sureOpra(self):
+        self.close()
+        
+    def cancelOpra(self):
+        self.close()
+
+        
+#--------------------------------------------------------------------------------------------------#
+class Popup_dialog_window(QDialog):
+    def __init__(self,str_title,str_text):
+        super(Popup_dialog_window,self).__init__(parent = None)
+        self.setWindowTitle(str_title)
+        self.mainlayout = QGridLayout(self)
+        
+        self.labelText = QLabel()
+        self.mainlayout.addWidget(self.labelText,0,0,1,10)
+        self.labelText.setText(str_text)
+        self.resize(300,300)
+
+        self.buttonCancel = QPushButton()
+        self.buttonCancel.setText("OK")
+        self.mainlayout.addWidget(self.buttonCancel,1,4,1,2)
+        self.setLayout(self.mainlayout)
+        self.buttonCancel.clicked.connect(self.cancelOpra)
+        self.show()
+
+    def cancelOpra(self):
+        self.close()
+
+#--------------------------------------------------------------------------------------------------#
+class Infor_dialog_window(QDialog):
+    
+    def __init__(self,str_title,str_text):
+        super(Infor_dialog_window,self).__init__(parent = None)
+        self.setWindowTitle(str_title)
+        self.mainlayout = QGridLayout(self)
+        
+        self.labelText = QLabel()
+        self.mainlayout.addWidget(self.labelText,0,0,1,10)
+        self.labelText.setText(str_text)
+
+        self.resize(300,300)
+        if 'Ip' in str_title:
+            self.buttonCheck = QPushButton()
+            self.buttonCheck.setText("Check")
+            self.mainlayout.addWidget(self.buttonCheck,1,2,1,2)
+            self.buttonCheck.clicked.connect(self.checkOpra_ip)
+        elif 'Cid' in str_title:
+            self.buttonCheck = QPushButton()
+            self.buttonCheck.setText("Check")
+            self.mainlayout.addWidget(self.buttonCheck,1,2,1,2)
+            self.buttonCheck.clicked.connect(self.checkOpra_cid)
+
+        self.buttonCancel = QPushButton()
+        self.buttonCancel.setText("Cancel")
+        self.mainlayout.addWidget(self.buttonCancel,1,6,1,2)
+        self.setLayout(self.mainlayout)
+        self.buttonCancel.clicked.connect(self.cancelOpra)
+        self.show()
+
+
+    def checkOpra_ip(self):     
+        if len(ip) == 0:
+            dialogUi = Popup_dialog_window('Clients with same IP','Not Availiabe')
+            if dialogUi.exec_():
+                pass
+        else:
+            if not len(group_clients_ip) == 0:
+                dialogUi = Popup_dialog_window('Clients with same IP','\n'.join(str(i) for i in group_clients_ip))
+                if dialogUi.exec_():
+                    pass
+            else:
+                dialogUi = Popup_dialog_window('Clients with same IP','None')
+                if dialogUi.exec_():
+                    pass
+                
+    def checkOpra_cid(self):     
+        if len(cid) == 0:
+            dialogUi = Popup_dialog_window('Clients with same Cid','Not Availiabe')
+            if dialogUi.exec_():
+                pass
+        else:
+            if not len(group_clients_cid) == 0:
+                dialogUi = Popup_dialog_window('Clients with same Cid','\n'.join(str(i) for i in group_clients_cid))
+                if dialogUi.exec_():
+                    pass
+            else:
+                dialogUi = Popup_dialog_window('Clients with same Cid','None')
+                if dialogUi.exec_():
+                    pass
+        
+    def cancelOpra(self):
+        self.close()
+
+#--------------------------------------------------------------------------------------------------#
+class comment_window(QDialog):
+    
+    def __init__(self,str_title,str_text):
+        super(comment_window,self).__init__(parent = None)
+        self.setWindowTitle(str_title)
+        self.mainlayout = QGridLayout(self)
+        
+        self.labelText = QLabel()
+        self.mainlayout.addWidget(self.labelText,0,0,1,10)
+        self.labelText.setText(str_text)
+
+        self.resize(300,300)
+        self.buttonAdd = QPushButton()
+        self.buttonAdd.setText("Add")
+        self.buttonRefresh = QPushButton()
+        self.buttonRefresh.setText("Refresh")
+        self.buttonExit = QPushButton()
+        self.buttonExit.setText("Exit")
+        
+        self.mainlayout.addWidget(self.buttonAdd,1,2,1,2)
+        self.mainlayout.addWidget(self.buttonRefresh,1,4,1,2)
+        self.mainlayout.addWidget(self.buttonExit,1,6,1,2)
+        
+        self.setLayout(self.mainlayout)
+        self.buttonAdd.clicked.connect(self.addOpra)
+        self.buttonRefresh.clicked.connect(self.refreshOpra)
+        self.buttonExit.clicked.connect(self.exitOpra)
+        
+        self.show()
+        self.exec_()
+
+    def addOpra(self):
+        text,ok =QInputDialog.getText(self, 'Input Comment', 'Update Comment:')
+        if ok:
+            conn = MySQLdb.connect(host = "192.168.100.75", user = 'chang', passwd = '1234',
+                       db = 'db2018', port = 3306, charset = 'utf8')
+            cur = conn.cursor(cursorclass = MySQLdb.cursors.DictCursor)
+            cur.execute("select comments from clients where login = '%s'" % client)
+            client_temp = cur.fetchall()
+            if client_temp[0]['comments'] == None:
+                cur.execute("update clients set comments = '%s' where Login = '%s'" % (text,client))
+                conn.commit()
+                cur.close()
+                conn.close()
+            else:
+                cur.execute("update clients set comments = concat(comments,';%s') where Login = '%s'" % (text,client))
+                conn.commit()
+                cur.close()
+                conn.close()
+        #self.close()
+        
+    def refreshOpra(self):
+        self.close()
+        refresh_window = ApplicationWindow_1()
+        refresh_window.get_comment()
+
+    def exitOpra(self):
+        self.close()
+
+#--------------------------------------------------------------------------------------------------#
+class Score_window(QDialog):
+    
+    def __init__(self,str_title,str_text):
+        super(Score_window,self).__init__(parent = None)
+        self.setWindowTitle(str_title)
+        self.mainlayout = QGridLayout(self)
+        
+        self.labelText = QLabel()
+        self.mainlayout.addWidget(self.labelText,0,0,1,10)
+        self.labelText.setText(str_text)
+
+        self.resize(100,100)
+        self.buttonCancel = QPushButton()
+        self.buttonCancel.setText("OK")
+        self.mainlayout.addWidget(self.buttonCancel,1,4,1,2)
+ 
+        self.setLayout(self.mainlayout)
+        self.buttonCancel.clicked.connect(self.cancelOpra)
+        self.show()
+        self.exec_()
+
+    def cancelOpra(self):
+        self.close()
+        
+#--------------------------------------------------------------------------------------------------#
+class ApplicationWindow_1(QWidget):
+    
+    def __init__(self, parent = None):
+        super(ApplicationWindow_1,self).__init__(parent)
+
+        #self.figure = Figure()
+        #self.canvas = FigureCanvas(self.figure)
+        self.resize(400,300)
+        layout = QVBoxLayout()
+
+
+        self.myButton_1 = QPushButton()
+        self.myButton_1.setText("Closed Trades Overview")
+        self.myButton_1.clicked.connect(self.call_cto)
+        layout.addWidget(self.myButton_1)
+
+        self.myButton_2 = QPushButton()
+        self.myButton_2.setText("Product Preference")
+        self.myButton_2.clicked.connect(self.call_pp)
+        layout.addWidget(self.myButton_2)
+
+        self.myButton_3 = QPushButton()
+        self.myButton_3.setText("Holding Period")
+        self.myButton_3.clicked.connect(self.call_hp)
+        layout.addWidget(self.myButton_3)
+
+        self.myButton_4 = QPushButton()
+        self.myButton_4.setText("Total PnL and Commission")
+        self.myButton_4.clicked.connect(self.call_pnl)
+        layout.addWidget(self.myButton_4)
+
+        self.myButton_5 = QPushButton()
+        self.myButton_5.setText("Max Position")
+        self.myButton_5.clicked.connect(self.call_mp)
+        layout.addWidget(self.myButton_5)
+
+        self.myButton_6 = QPushButton()
+        self.myButton_6.setText("Duration-Profit Scatter")
+        self.myButton_6.clicked.connect(self.call_hpc)
+        layout.addWidget(self.myButton_6)
+
+        self.myButton_7 = QPushButton()
+        self.myButton_7.setText("Get Ips")
+        self.myButton_7.clicked.connect(self.ip_window)
+        layout.addWidget(self.myButton_7)
+
+        self.myButton_8 = QPushButton()
+        self.myButton_8.setText("Get CIDs")
+        self.myButton_8.clicked.connect(self.cid_window)
+        layout.addWidget(self.myButton_8)
+
+        self.myButton_9 = QPushButton()
+        self.myButton_9.setText("Show or Update Comment")
+        self.myButton_9.clicked.connect(self.get_comment)
+        layout.addWidget(self.myButton_9)
+
+        self.myButton_10 = QPushButton()
+        self.myButton_10.setText("Show Risk Score")
+        self.myButton_10.clicked.connect(self.get_score)
+        layout.addWidget(self.myButton_10)
+        
+        self.setLayout(layout)
+        
+    def call_cto(self):
+        dialogUi = graph_dialog_window('Closed Trades Overview','closed_trades')
+        if dialogUi.exec_():
+            pass
+        
+    def call_pp(self):
+        dialogUi = graph_dialog_window('Product Preference','product_preference')
+        if dialogUi.exec_():
+            pass
+        
+    def call_hp(self):
+        dialogUi = graph_dialog_window('Holding Period','holding_period_distribution')
+        if dialogUi.exec_():
+            pass
+        
+    def call_pnl(self):
+        dialogUi = graph_dialog_window('Total PnL & Commission','pnl')
+        if dialogUi.exec_():
+            pass
+        
+    def call_mp(self):
+        dialogUi = graph_dialog_window('Max Position','position')
+        if dialogUi.exec_():
+            pass
+        
+    def call_hpc(self):
+        dialogUi = graph_dialog_window('Duration-Profit Scatter','duration')
+        if dialogUi.exec_():
+            pass
+
+    def ip_window(self):
+        #ip_new = ip[0].split(';')
+        dialogUi = Infor_dialog_window('Ips that were used by %s' % client,'\n'.join(str(i) for i in ip))
+        if dialogUi.exec_():
+            pass
+
+    def cid_window(self):
+        #cid_new = cid[0].split(';')
+        dialogUi = Infor_dialog_window('Cids that were used by %s' % client,'\n'.join(str(i) for i in cid))
+        if dialogUi.exec_():
+            pass
+
+    def get_comment(self):
+        conn = MySQLdb.connect(host = "192.168.100.75", user = 'chang', passwd = '1234',
+                       db = 'db2018', port = 3306, charset = 'utf8')
+        cur = conn.cursor(cursorclass = MySQLdb.cursors.DictCursor)
+        cur.execute("select comments from clients where Login = '%s'" % (client))
+        lines = cur.fetchall()
+        cur.close()
+        conn.close()
+        #for i in lines:
+        if not lines == ():
+            if not lines[0]['comments'] is None:
+                comment = lines[0]['comments']
+                comment_new = comment.split(';')
+                dialogUi = comment_window('Comment and Risk Rating', '\n'.join(i for i in comment_new))
+            else:
+                comment_new = None
+                dialogUi = comment_window('Comment and Risk Rating', '')
+        else:
+            dialogUi = comment_window('Comment and Risk Rating', 'This client has not yet been added to the comment database')
+
+    def get_score(self):
+        same_ip_factor = 7.5
+        same_cid_factor = 7.5
+        profit_per_lot_factor = 25
+        profit_orders_ratio_factor = 20
+        scalping_factor = 15
+        total_volume_factor = 20
+        commission_profit_ration = 5
+        total_number_of_orders = sum(number_of_profit_orders)+sum(number_of_loss_orders)
+        '''
+        risk_score = same_ip_factor*len(group_clients_ip) + /
+        same_cid_factor*len(group_clients_cid)+ /
+        total_profit/total_volume*profit_per_lot_factor + /
+        sum(number_of_profit_orders)/sum(total_number_of_orders)*profit_orders_ratio_factor + /
+        hp_frequency_dict['< 1 min']/total_number_of_orders*scalping_factor + /
+        total_volume*total_volume_factor + /
+        abs(total_commission)/(total_commission+total_profit)*commission_profit_ration
+        '''
+        risk_score = 77
+        
+        dialogUi = Score_window('Risk Score of Client %s' % client, 'Risk Rating:' + str(risk_score))
+
+    
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+
+    main = MyMainWindow()
+    main.show()
+
+    sys.exit(app.exec_())
+
